@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.warehouse.mapper.SupplierMapper">
+
+    <!-- 供应商结果映射 -->
+    <resultMap id="SupplierResultMap" type="com.warehouse.entity.Supplier">
+        <id property="supplierId" column="supplier_id"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="contactPerson" column="contact_person"/>
+        <result property="phone" column="phone"/>
+        <result property="address" column="address"/>
+        <result property="qualificationLevel" column="qualification_level"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 插入供应商 -->
+    <insert id="insert" parameterType="com.warehouse.entity.Supplier">
+        INSERT INTO SUPPLIER (
+            supplier_id, supplier_name, contact_person, phone,
+            address, qualification_level, status
+        ) VALUES (
+            #{supplierId}, #{supplierName}, #{contactPerson}, #{phone},
+            #{address}, #{qualificationLevel}, COALESCE(#{status}, '合作中')
+        )
+    </insert>
+
+    <!-- 更新供应商 -->
+    <update id="update" parameterType="com.warehouse.entity.Supplier">
+        UPDATE SUPPLIER
+        SET supplier_name = #{supplierName},
+            contact_person = #{contactPerson},
+            phone = #{phone},
+            address = #{address},
+            qualification_level = #{qualificationLevel},
+            status = #{status},
+            update_time = CURRENT_TIMESTAMP
+        WHERE supplier_id = #{supplierId}
+    </update>
+
+    <!-- 删除供应商 -->
+    <delete id="delete">
+        DELETE FROM SUPPLIER
+        WHERE supplier_id = #{supplierId}
+    </delete>
+
+    <!-- 根据ID查询 -->
+    <select id="selectById" resultMap="SupplierResultMap">
+        SELECT * FROM SUPPLIER
+        WHERE supplier_id = #{supplierId}
+    </select>
+
+    <!-- 查询所有供应商 -->
+    <select id="selectAll" resultMap="SupplierResultMap">
+        SELECT * FROM SUPPLIER
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 查询合作中的供应商 -->
+    <select id="selectActive" resultMap="SupplierResultMap">
+        SELECT * FROM SUPPLIER
+        WHERE status = '合作中'
+        ORDER BY supplier_name
+    </select>
+
+    <!-- 模糊查询 -->
+    <select id="selectByKeyword" resultMap="SupplierResultMap">
+        SELECT * FROM SUPPLIER
+        WHERE supplier_id LIKE CONCAT('%', #{keyword}, '%')
+           OR supplier_name LIKE CONCAT('%', #{keyword}, '%')
+           OR contact_person LIKE CONCAT('%', #{keyword}, '%')
+        ORDER BY supplier_id
+    </select>
+
+    <!-- 更新供应商状态 -->
+    <update id="updateStatus">
+        UPDATE SUPPLIER
+        SET status = #{status},
+            update_time = CURRENT_TIMESTAMP
+        WHERE supplier_id = #{supplierId}
+    </update>
+
+</mapper>

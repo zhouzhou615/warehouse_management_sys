@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.warehouse.mapper.MaterialMapper">
+
+    <!-- 物料结果映射（包含供应商信息） -->
+    <resultMap id="MaterialResultMap" type="com.warehouse.entity.Material">
+        <id property="materialId" column="material_id"/>
+        <result property="materialName" column="material_name"/>
+        <result property="specification" column="specification"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="categoryName" column="category_name"/>
+        <result property="unit" column="unit"/>
+        <result property="safeStockMin" column="safe_stock_min"/>
+        <result property="safeStockMax" column="safe_stock_max"/>
+        <result property="currentStock" column="current_stock"/>
+        <result property="unitPrice" column="unit_price"/>
+        <result property="supplierId" column="supplier_id"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="stockStatus" column="stock_status"/>
+    </resultMap>
+
+    <!-- 插入物料 -->
+    <insert id="insert" parameterType="com.warehouse.entity.Material">
+        INSERT INTO MATERIAL (
+            material_id, material_name, specification, category_id,
+            unit, safe_stock_min, safe_stock_max, current_stock,
+            unit_price, supplier_id, status
+        ) VALUES (
+                     #{materialId}, #{materialName}, #{specification}, #{categoryId},
+                     #{unit}, #{safeStockMin}, #{safeStockMax},
+                     COALESCE(#{currentStock}, 0),
+                     #{unitPrice}, #{supplierId}, COALESCE(#{status}, '正常')
+                 )
+    </insert>
+
+    <!-- 更新物料 -->
+    <update id="update" parameterType="com.warehouse.entity.Material">
+        UPDATE MATERIAL
+        SET material_name = #{materialName},
+            specification = #{specification},
+            category_id = #{categoryId},
+            unit = #{unit},
+            unit_price = #{unitPrice},
+            supplier_id = #{supplierId},
+            update_time = CURRENT_TIMESTAMP
+        WHERE material_id = #{materialId}
+    </update>
+
+    <!-- 更新安全库存 -->
+    <update id="updateSafeStock">
+        UPDATE MATERIAL
+        SET safe_stock_min = #{safeStockMin},
+            safe_stock_max = #{safeStockMax},
+            update_time = CURRENT_TIMESTAMP
+        WHERE material_id = #{materialId}
+    </update>
+
+    <!-- 删除物料（仅当库存为0） -->
+    <delete id="delete">
+        DELETE FROM MATERIAL
+        WHERE material_id = #{materialId}
+          AND current_stock = 0
+    </delete>
+
+    <!-- 根据ID查询物料 -->
+    <select id="selectById" resultMap="MaterialResultMap">
+        SELECT m.*, mc.category_name, s.supplier_name,
+               CASE
+                   WHEN m.current_stock &lt; m.safe_stock_min THEN '低库存'
+                   WHEN m.current_stock &gt; m.safe_stock_max THEN '高库存'
+                   ELSE '正常'
+                   END AS stock_status
+        FROM MATERIAL m
+                 LEFT JOIN MATERIAL_CATEGORY mc ON m.category_id = mc.category_id
+                 LEFT JOIN SUPPLIER s ON m.supplier_id = s.supplier_id
+        WHERE m.material_id = #{materialId}
+    </select>
+
+    <!-- 查询所有物料（含库存状态和供应商信息） -->
+    <select id="selectAllWithStatus" resultMap="MaterialResultMap">
+        SELECT m.*, mc.category_name, s.supplier_name,
+               CASE
+                   WHEN m.current_stock &lt; m.safe_stock_min THEN '低库存'
+                   WHEN m.current_stock &gt; m.safe_stock_max THEN '高库存'
+                   ELSE '正常'
+                   END AS stock_status
+        FROM MATERIAL m
+                 LEFT JOIN MATERIAL_CATEGORY mc ON m.category_id = mc.category_id
+                 LEFT JOIN SUPPLIER s ON m.supplier_id = s.supplier_id
+        WHERE m.status = '正常'
+        ORDER BY m.material_id
+    </select>
+
+    <!-- 模糊查询物料 -->
+    <select id="selectByKeyword" resultMap="MaterialResultMap">
+        SELECT m.*, mc.category_name, s.supplier_name,
+               CASE
+                   WHEN m.current_stock &lt; m.safe_stock_min THEN '低库存'
+                   WHEN m.current_stock &gt; m.safe_stock_max THEN '高库存'
+                   ELSE '正常'
+                   END AS stock_status
+        FROM MATERIAL m
+                 LEFT JOIN MATERIAL_CATEGORY mc ON m.category_id = mc.category_id
+                 LEFT JOIN SUPPLIER s ON m.supplier_id = s.supplier_id
+        WHERE m.status = '正常'
+          AND (m.material_id LIKE CONCAT('%', #{keyword}, '%')
+            OR m.material_name LIKE CONCAT('%', #{keyword}, '%')
+            OR m.specification LIKE CONCAT('%', #{keyword}, '%')
+            OR s.supplier_name LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY m.material_id
+    </select>
+
+    <!-- 查询低库存物料 -->
+    <select id="selectLowStock" resultMap="MaterialResultMap">
+        SELECT m.*, mc.category_name, s.supplier_name, '低库存' AS stock_status
+        FROM MATERIAL m
+                 LEFT JOIN MATERIAL_CATEGORY mc ON m.category_id = mc.category_id
+                 LEFT JOIN SUPPLIER s ON m.supplier_id = s.supplier_id
+        WHERE m.status = '正常'
+          AND m.current_stock &lt; m.safe_stock_min
+        ORDER BY (m.current_stock - m.safe_stock_min)
+    </select>
+
+    <!-- 查询高库存物料 -->
+    <select id="selectHighStock" resultMap="MaterialResultMap">
+        SELECT m.*, mc.category_name, s.supplier_name, '高库存' AS stock_status
+        FROM MATERIAL m
+                 LEFT JOIN MATERIAL_CATEGORY mc ON m.category_id = mc.category_id
+                 LEFT JOIN SUPPLIER s ON m.supplier_id = s.supplier_id
+        WHERE m.status = '正常'
+          AND m.current_stock &gt; m.safe_stock_max
+        ORDER BY (m.current_stock - m.safe_stock_max) DESC
+    </select>
+
+    <!-- 查询所有类别 -->
+    <select id="selectAllCategories" resultType="com.warehouse.entity.MaterialCategory">
+        SELECT category_id, category_name, category_desc, parent_id, create_time
+        FROM MATERIAL_CATEGORY
+        ORDER BY category_id
+    </select>
+
+    <!-- 根据类别查询物料 -->
+    <select id="selectByCategoryId" resultMap="MaterialResultMap">
+        SELECT m.*, mc.category_name, s.supplier_name,
+               CASE
+                   WHEN m.current_stock &lt; m.safe_stock_min THEN '低库存'
+                   WHEN m.current_stock &gt; m.safe_stock_max THEN '高库存'
+                   ELSE '正常'
+                   END AS stock_status
+        FROM MATERIAL m
+                 LEFT JOIN MATERIAL_CATEGORY mc ON m.category_id = mc.category_id
+                 LEFT JOIN SUPPLIER s ON m.supplier_id = s.supplier_id
+        WHERE m.category_id = #{categoryId}
+          AND m.status = '正常'
+        ORDER BY m.material_id
+    </select>
+
+    <!-- 根据供应商查询物料 -->
+    <select id="selectBySupplierId" resultMap="MaterialResultMap">
+        SELECT m.*, mc.category_name, s.supplier_name,
+               CASE
+                   WHEN m.current_stock &lt; m.safe_stock_min THEN '低库存'
+                   WHEN m.current_stock &gt; m.safe_stock_max THEN '高库存'
+                   ELSE '正常'
+                   END AS stock_status
+        FROM MATERIAL m
+                 LEFT JOIN MATERIAL_CATEGORY mc ON m.category_id = mc.category_id
+                 LEFT JOIN SUPPLIER s ON m.supplier_id = s.supplier_id
+        WHERE m.supplier_id = #{supplierId}
+          AND m.status = '正常'
+        ORDER BY m.material_id
+    </select>
+</mapper>

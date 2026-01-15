@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.warehouse.mapper.InoutRecordMapper">
+
+    <!-- 出入库记录结果映射 -->
+    <resultMap id="InoutRecordResultMap" type="com.warehouse.entity.InoutRecord">
+        <id property="recordId" column="record_id"/>
+        <result property="materialId" column="material_id"/>
+        <result property="materialName" column="material_name"/>
+        <result property="inoutType" column="inout_type"/>
+        <result property="quantity" column="quantity"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="operationTime" column="operation_time"/>
+        <result property="remark" column="remark"/>
+        <result property="beforeStock" column="before_stock"/>
+        <result property="afterStock" column="after_stock"/>
+    </resultMap>
+
+    <!-- 插入出入库记录 -->
+    <insert id="insert" parameterType="com.warehouse.entity.InoutRecord">
+        INSERT INTO INOUT_RECORD (
+            record_id, material_id, inout_type, quantity,
+            operator_id, remark, before_stock, after_stock
+        ) VALUES (
+                     #{recordId}, #{materialId}, #{inoutType}, #{quantity},
+                     #{operatorId}, #{remark}, #{beforeStock}, #{afterStock}
+                 )
+    </insert>
+
+    <!-- 根据物料ID查询所有记录 -->
+    <select id="selectByMaterialId" resultMap="InoutRecordResultMap">
+        SELECT ir.*, m.material_name, o.operator_name
+        FROM INOUT_RECORD ir
+                 LEFT JOIN MATERIAL m ON ir.material_id = m.material_id
+                 LEFT JOIN OPERATOR o ON ir.operator_id = o.operator_id
+        WHERE ir.material_id = #{materialId}
+        ORDER BY ir.operation_time DESC
+    </select>
+
+    <!-- 时间范围查询（物料追溯） -->
+    <select id="selectByDateRange" resultMap="InoutRecordResultMap">
+        SELECT ir.*, m.material_name, o.operator_name
+        FROM INOUT_RECORD ir
+                 LEFT JOIN MATERIAL m ON ir.material_id = m.material_id
+                 LEFT JOIN OPERATOR o ON ir.operator_id = o.operator_id
+        WHERE ir.material_id = #{materialId}
+          AND ir.operation_time BETWEEN #{startDate} AND #{endDate}
+        ORDER BY ir.operation_time ASC
+    </select>
+
+    <!-- 查询最近N条记录 -->
+    <select id="selectRecent" resultMap="InoutRecordResultMap">
+        SELECT ir.*, m.material_name, o.operator_name
+        FROM INOUT_RECORD ir
+                 LEFT JOIN MATERIAL m ON ir.material_id = m.material_id
+                 LEFT JOIN OPERATOR o ON ir.operator_id = o.operator_id
+        ORDER BY ir.operation_time DESC
+            LIMIT #{limit}
+    </select>
+
+    <!-- 按物料统计出入库 -->
+    <select id="statisticsByMaterial" resultType="map">
+        SELECT
+            ir.material_id,
+            m.material_name,
+            SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE 0 END) AS in_quantity,
+            SUM(CASE WHEN ir.inout_type = '出库' THEN ir.quantity ELSE 0 END) AS out_quantity,
+            COUNT(*) AS record_count
+        FROM INOUT_RECORD ir
+                 LEFT JOIN MATERIAL m ON ir.material_id = m.material_id
+        WHERE ir.operation_time BETWEEN #{startDate} AND #{endDate}
+        GROUP BY ir.material_id, m.material_name
+        ORDER BY (in_quantity + out_quantity) DESC
+    </select>
+</mapper>

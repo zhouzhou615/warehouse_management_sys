@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.warehouse.mapper.StockAlertMapper">
+
+    <!-- 库存预警结果映射 -->
+    <resultMap id="StockAlertResultMap" type="com.warehouse.entity.StockAlert">
+        <id property="alertId" column="alert_id"/>
+        <result property="materialId" column="material_id"/>
+        <result property="materialName" column="material_name"/>
+        <result property="alertType" column="alert_type"/>
+        <result property="currentStock" column="current_stock"/>
+        <result property="safeThreshold" column="safe_threshold"/>
+        <result property="alertTime" column="alert_time"/>
+        <result property="status" column="status"/>
+        <result property="handleTime" column="handle_time"/>
+        <result property="handleRemark" column="handle_remark"/>
+    </resultMap>
+
+    <!-- 插入预警记录 -->
+    <insert id="insert" parameterType="com.warehouse.entity.StockAlert">
+        INSERT INTO STOCK_ALERT (
+            material_id, alert_type, current_stock, safe_threshold
+        ) VALUES (
+                     #{materialId}, #{alertType}, #{currentStock}, #{safeThreshold}
+                 )
+    </insert>
+
+    <!-- 查询未处理的预警 -->
+    <select id="selectUnhandled" resultMap="StockAlertResultMap">
+        SELECT
+        sa.alert_id,
+        sa.material_id,
+        m.material_name,
+        sa.alert_type,
+        sa.current_stock,
+        sa.safe_threshold,
+        sa.alert_time,
+        sa.status,
+        sa.handle_time,
+        sa.handle_remark
+        FROM STOCK_ALERT sa
+        LEFT JOIN MATERIAL m ON sa.material_id = m.material_id
+        WHERE sa.status = '未处理'
+        <if test="alertType != null and alertType != ''">
+            AND sa.alert_type = #{alertType}
+        </if>
+        ORDER BY sa.alert_time DESC
+    </select>
+
+    <!-- 查询所有预警 -->
+    <select id="selectAll" resultMap="StockAlertResultMap">
+        SELECT
+            sa.alert_id,
+            sa.material_id,
+            m.material_name,
+            sa.alert_type,
+            sa.current_stock,
+            sa.safe_threshold,
+            sa.alert_time,
+            sa.status,
+            sa.handle_time,
+            sa.handle_remark
+        FROM STOCK_ALERT sa
+                 LEFT JOIN MATERIAL m ON sa.material_id = m.material_id
+        ORDER BY sa.alert_time DESC
+    </select>
+
+    <!-- 处理预警 -->
+    <update id="handleAlert">
+        UPDATE STOCK_ALERT
+        SET status = '已处理',
+            handle_time = CURRENT_TIMESTAMP,
+            handle_remark = #{handleRemark}
+        WHERE alert_id = #{alertId}
+    </update>
+
+    <!-- 根据物料ID查询预警 -->
+    <select id="selectByMaterialId" resultMap="StockAlertResultMap">
+        SELECT
+            sa.alert_id,
+            sa.material_id,
+            m.material_name,
+            sa.alert_type,
+            sa.current_stock,
+            sa.safe_threshold,
+            sa.alert_time,
+            sa.status,
+            sa.handle_time,
+            sa.handle_remark
+        FROM STOCK_ALERT sa
+                 LEFT JOIN MATERIAL m ON sa.material_id = m.material_id
+        WHERE sa.material_id = #{materialId}
+        ORDER BY sa.alert_time DESC
+    </select>
+</mapper>
