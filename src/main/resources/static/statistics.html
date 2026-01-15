@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>统计分析</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.9/vue.global.prod.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-card>
+        <el-tabs v-model="activeTab">
+            <!-- 月度统计 -->
+            <el-tab-pane label="月度统计" name="monthly">
+                <el-form inline>
+                    <el-form-item label="年份">
+                        <el-select v-model="monthlyQuery.year" style="width: 120px">
+                            <el-option :value="2024" label="2024年"></el-option>
+                            <el-option :value="2025" label="2025年"></el-option>
+                            <el-option :value="2026" label="2026年"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="月份">
+                        <el-select v-model="monthlyQuery.month" style="width: 120px">
+                            <el-option v-for="m in 12" :key="m" :value="m" :label="m + '月'"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @click="loadMonthlyStats">查询</el-button>
+                    </el-form-item>
+                </el-form>
+
+                <el-table :data="monthlyStats" stripe border>
+                    <el-table-column type="index" label="序号" width="60"></el-table-column>
+                    <el-table-column prop="materialId" label="物料编号" width="120"></el-table-column>
+                    <el-table-column prop="materialName" label="物料名称" width="150"></el-table-column>
+                    <el-table-column prop="inQuantity" label="入库总量" width="120" align="right">
+                        <template #default="scope">
+                            <span style="color: #67c23a;">{{ scope.row.inQuantity || 0 }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="outQuantity" label="出库总量" width="120" align="right">
+                        <template #default="scope">
+                            <span style="color: #f56c6c;">{{ scope.row.outQuantity || 0 }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="netChange" label="净变化" width="120" align="right">
+                        <template #default="scope">
+                                <span :style="{color: scope.row.netChange >= 0 ? '#67c23a' : '#f56c6c'}">
+                                    {{ scope.row.netChange >= 0 ? '+' : '' }}{{ scope.row.netChange || 0 }}
+                                </span>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <div class="chart-card" style="margin-top: 20px;">
+                    <h3>月度出入库对比</h3>
+                    <div id="monthlyChart" style="height: 400px;"></div>
+                </div>
+            </el-tab-pane>
+
+            <!-- 类别流量统计 -->
+            <el-tab-pane label="类别流量统计" name="category">
+                <el-form inline>
+                    <el-form-item label="时间范围">
+                        <el-date-picker
+                                v-model="categoryQuery.dateRange"
+                                type="daterange"
+                                range-separator="至"
+                                start-placeholder="开始日期"
+                                end-placeholder="结束日期">
+                        </el-date-picker>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @click="loadCategoryStats">查询</el-button>
+                    </el-form-item>
+                </el-form>
+
+                <div class="chart-card">
+                    <h3>各类别出入库流量</h3>
+                    <div id="categoryChart" style="height: 400px;"></div>
+                </div>
+
+                <el-table :data="categoryStats" stripe border style="margin-top: 20px;">
+                    <el-table-column prop="categoryName" label="物料类别" width="150"></el-table-column>
+                    <el-table-column prop="month" label="月份" width="100"></el-table-column>
+                    <el-table-column prop="totalIn" label="入库总量" width="120" align="right"></el-table-column>
+                    <el-table-column prop="totalOut" label="出库总量" width="120" align="right"></el-table-column>
+                    <el-table-column prop="recordCount" label="操作次数" width="100" align="right"></el-table-column>
+                </el-table>
+            </el-tab-pane>
+
+            <!-- 物料趋势分析 -->
+            <el-tab-pane label="物料趋势" name="trend">
+                <el-form inline>
+                    <el-form-item label="物料">
+                        <el-select
+                                v-model="trendQuery.materialId"
+                                filterable
+                                placeholder="请选择物料"
+                                style="width: 300px">
+                            <el-option
+                                    v-for="m in materials"
+                                    :key="m.materialId"
+                                    :label="`${m.materialId} - ${m.materialName}`"
+                                    :value="m.materialId">
+                            </el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="时间跨度">
+                        <el-select v-model="trendQuery.months" style="width: 120px">
+                            <el-option :value="3" label="近3个月"></el-option>
+                            <el-option :value="6" label="近6个月"></el-option>
+                            <el-option :value="12" label="近12个月"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @click="loadTrendData">查询</el-button>
+                    </el-form-item>
+                </el-form>
+
+                <div class="chart-card">
+                    <h3>物料出入库趋势</h3>
+                    <div id="trendChart" style="height: 450px;"></div>
+                </div>
+            </el-tab-pane>
+        </el-tabs>
+    </el-card>
+</div>
+
+<script>
+    const { createApp } = Vue;
+    const { ElMessage } = ElementPlus;
+
+    axios.defaults.baseURL = '/warehouse';
+
+    createApp({
+        data() {
+            return {
+                activeTab: 'monthly',
+                materials: [],
+                monthlyQuery: {
+                    year: new Date().getFullYear(),
+                    month: new Date().getMonth() + 1
+                },
+                monthlyStats: [],
+                monthlyChart: null,
+                categoryQuery: {
+                    dateRange: null
+                },
+                categoryStats: [],
+                categoryChart: null,
+                trendQuery: {
+                    materialId: '',
+                    months: 6
+                },
+                trendChart: null
+            }
+        },
+        mounted() {
+            this.loadMaterials();
+            this.loadMonthlyStats();
+        },
+        methods: {
+            async loadMaterials() {
+                try {
+                    const res = await axios.get('/api/material/list');
+                    if (res.data.code === 200) {
+                        this.materials = res.data.data;
+                    }
+                } catch (error) {
+                    console.error('加载物料失败:', error);
+                }
+            },
+            async loadMonthlyStats() {
+                try {
+                    const res = await axios.post('/api/statistics/monthly', this.monthlyQuery);
+                    if (res.data.code === 200) {
+                        this.monthlyStats = res.data.data;
+                        this.$nextTick(() => {
+                            this.renderMonthlyChart();
+                        });
+                    }
+                } catch (error) {
+                    ElMessage.error('加载统计数据失败');
+                }
+            },
+            renderMonthlyChart() {
+                if (this.monthlyChart) {
+                    this.monthlyChart.dispose();
+                }
+                this.monthlyChart = echarts.init(document.getElementById('monthlyChart'));
+
+                const materials = this.monthlyStats.map(s => s.materialName);
+                const inData = this.monthlyStats.map(s => s.inQuantity || 0);
+                const outData = this.monthlyStats.map(s => s.outQuantity || 0);
+
+                const option = {
+                    tooltip: { trigger: 'axis' },
+                    legend: { data: ['入库', '出库'] },
+                    xAxis: {
+                        type: 'category',
+                        data: materials,
+                        axisLabel: { rotate: 45, interval: 0 }
+                    },
+                    yAxis: { type: 'value' },
+                    series: [
+                        {
+                            name: '入库',
+                            type: 'bar',
+                            data: inData,
+                            itemStyle: { color: '#67c23a' }
+                        },
+                        {
+                            name: '出库',
+                            type: 'bar',
+                            data: outData,
+                            itemStyle: { color: '#f56c6c' }
+                        }
+                    ]
+                };
+                this.monthlyChart.setOption(option);
+            },
+            async loadCategoryStats() {
+                if (!this.categoryQuery.dateRange) {
+                    ElMessage.warning('请选择时间范围');
+                    return;
+                }
+
+                try {
+                    const startDate = this.formatDate(this.categoryQuery.dateRange[0]);
+                    const endDate = this.formatDate(this.categoryQuery.dateRange[1]);
+
+                    const res = await axios.get('/api/statistics/categoryFlow', {
+                        params: { startDate, endDate }
+                    });
+
+                    if (res.data.code === 200) {
+                        this.categoryStats = res.data.data;
+                        this.$nextTick(() => {
+                            this.renderCategoryChart();
+                        });
+                    }
+                } catch (error) {
+                    ElMessage.error('加载统计数据失败');
+                }
+            },
+            renderCategoryChart() {
+                if (this.categoryChart) {
+                    this.categoryChart.dispose();
+                }
+                this.categoryChart = echarts.init(document.getElementById('categoryChart'));
+
+                // 模拟数据
+                const option = {
+                    tooltip: { trigger: 'axis' },
+                    legend: { data: ['入库', '出库'] },
+                    xAxis: {
+                        type: 'category',
+                        data: ['电子元件', '机械零件', '化工原料', '包装材料', '其他']
+                    },
+                    yAxis: { type: 'value' },
+                    series: [
+                        {
+                            name: '入库',
+                            type: 'bar',
+                            data: [320, 280, 350, 220, 180],
+                            itemStyle: { color: '#67c23a' }
+                        },
+                        {
+                            name: '出库',
+                            type: 'bar',
+                            data: [280, 250, 300, 200, 150],
+                            itemStyle: { color: '#f56c6c' }
+                        }
+                    ]
+                };
+                this.categoryChart.setOption(option);
+            },
+            async loadTrendData() {
+                if (!this.trendQuery.materialId) {
+                    ElMessage.warning('请选择物料');
+                    return;
+                }
+
+                try {
+                    const res = await axios.get(`/api/statistics/trend/${this.trendQuery.materialId}`, {
+                        params: { months: this.trendQuery.months }
+                    });
+
+                    if (res.data.code === 200) {
+                        this.$nextTick(() => {
+                            this.renderTrendChart(res.data.data);
+                        });
+                    }
+                } catch (error) {
+                    ElMessage.error('加载趋势数据失败');
+                }
+            },
+            renderTrendChart(data) {
+                if (this.trendChart) {
+                    this.trendChart.dispose();
+                }
+                this.trendChart = echarts.init(document.getElementById('trendChart'));
+
+                // 模拟数据
+                const months = this.generateMonths(this.trendQuery.months);
+                const inData = this.generateRandomData(this.trendQuery.months, 50, 200);
+                const outData = this.generateRandomData(this.trendQuery.months, 40, 180);
+
+                const option = {
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: { type: 'cross' }
+                    },
+                    legend: { data: ['入库', '出库', '库存'] },
+                    xAxis: {
+                        type: 'category',
+                        data: months
+                    },
+                    yAxis: [
+                        {
+                            type: 'value',
+                            name: '出入库量'
+                        },
+                        {
+                            type: 'value',
+                            name: '库存'
+                        }
+                    ],
+                    series: [
+                        {
+                            name: '入库',
+                            type: 'line',
+                            data: inData,
+                            itemStyle: { color: '#67c23a' },
+                            smooth: true
+                        },
+                        {
+                            name: '出库',
+                            type: 'line',
+                            data: outData,
+                            itemStyle: { color: '#f56c6c' },
+                            smooth: true
+                        },
+                        {
+                            name: '库存',
+                            type: 'line',
+                            yAxisIndex: 1,
+                            data: this.generateRandomData(this.trendQuery.months, 800, 1200),
+                            itemStyle: { color: '#409eff' },
+                            smooth: true
+                        }
+                    ]
+                };
+                this.trendChart.setOption(option);
+            },
+            generateMonths(count) {
+                const months = [];
+                for (let i = count - 1; i >= 0; i--) {
+                    const date = new Date();
+                    date.setMonth(date.getMonth() - i);
+                    months.push((date.getMonth() + 1) + '月');
+                }
+                return months;
+            },
+            generateRandomData(count, min, max) {
+                return Array.from({ length: count }, () =>
+                    Math.floor(Math.random() * (max - min + 1)) + min
+                );
+            },
+            formatDate(date) {
+                const d = new Date(date);
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>

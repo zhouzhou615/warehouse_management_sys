@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工业物料库存管理系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.9/vue.global.prod.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        #app {
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            padding: 0 20px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .main-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .dashboard-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 30px rgba(0,0,0,0.15);
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+
+        .alert-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #f56c6c;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-container style="height: 100vh;">
+        <!-- 头部导航（更新：添加供应商菜单） -->
+        <el-header class="header" height="60px">
+            <div style="display: flex; align-items: center; justify-content: space-between; height: 100%;">
+                <div class="logo">
+                    <i class="el-icon-box"></i>
+                    工业物料库存管理系统
+                </div>
+                <el-menu mode="horizontal" :default-active="activeMenu" @select="handleMenuSelect">
+                    <el-menu-item index="dashboard">
+                        <i class="el-icon-data-line"></i>
+                        <span>数据看板</span>
+                    </el-menu-item>
+                    <el-menu-item index="material">
+                        <i class="el-icon-box"></i>
+                        <span>物料管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="supplier">
+                        <i class="el-icon-user"></i>
+                        <span>供应商管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="inout">
+                        <i class="el-icon-sort"></i>
+                        <span>出入库</span>
+                    </el-menu-item>
+                    <el-menu-item index="alert">
+                        <el-badge :value="alertCount" :hidden="alertCount === 0">
+                            <i class="el-icon-warning"></i>
+                            <span>库存预警</span>
+                        </el-badge>
+                    </el-menu-item>
+                    <el-menu-item index="statistics">
+                        <i class="el-icon-pie-chart"></i>
+                        <span>统计分析</span>
+                    </el-menu-item>
+                </el-menu>
+            </div>
+        </el-header>
+
+        <!-- 主内容区 -->
+        <el-main style="background: transparent;">
+            <div class="main-container">
+                <!-- 数据看板 -->
+                <div v-show="activeMenu === 'dashboard'">
+                    <el-row :gutter="20">
+                        <el-col :span="6" v-for="stat in dashboardStats" :key="stat.title">
+                            <div class="dashboard-card">
+                                <div v-if="stat.alert" class="alert-badge">{{ stat.alert }}</div>
+                                <div style="margin-bottom: 12px; color: #909399;">{{ stat.title }}</div>
+                                <div class="stat-number">{{ stat.value }}</div>
+                                <div style="margin-top: 8px; font-size: 14px; color: #67c23a;" v-if="stat.trend">
+                                    {{ stat.trend }}
+                                </div>
+                            </div>
+                        </el-col>
+                    </el-row>
+
+                    <!-- 图表 -->
+                    <div class="chart-container">
+                        <h3 style="margin-bottom: 20px;">近30天出入库趋势</h3>
+                        <div id="trendChart" style="height: 400px;"></div>
+                    </div>
+
+                    <el-row :gutter="20" style="margin-top: 20px;">
+                        <el-col :span="12">
+                            <div class="chart-container">
+                                <h3 style="margin-bottom: 20px;">物料类别分布</h3>
+                                <div id="categoryChart" style="height: 350px;"></div>
+                            </div>
+                        </el-col>
+                        <el-col :span="12">
+                            <div class="chart-container">
+                                <h3 style="margin-bottom: 20px;">库存状态分布</h3>
+                                <div id="stockStatusChart" style="height: 350px;"></div>
+                            </div>
+                        </el-col>
+                    </el-row>
+                </div>
+
+                <!-- 其他页面通过iframe加载 -->
+                <iframe
+                        v-show="activeMenu === 'material'"
+                        src="material.html"
+                        frameborder="0"
+                        style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
+                </iframe>
+
+                <iframe
+                        v-show="activeMenu === 'supplier'"
+                        src="supplier.html"
+                        frameborder="0"
+                        style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
+                </iframe>
+
+                <iframe
+                        v-show="activeMenu === 'inout'"
+                        src="inout.html"
+                        frameborder="0"
+                        style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
+                </iframe>
+
+                <iframe
+                        v-show="activeMenu === 'alert'"
+                        src="alert.html"
+                        frameborder="0"
+                        style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
+                </iframe>
+
+                <iframe
+                        v-show="activeMenu === 'statistics'"
+                        src="statistics.html"
+                        frameborder="0"
+                        style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
+                </iframe>
+            </div>
+        </el-main>
+    </el-container>
+</div>
+
+<script>
+    const { createApp } = Vue;
+    const { ElMessage } = ElementPlus;
+
+    axios.defaults.baseURL = '/warehouse';
+
+    createApp({
+        data() {
+            return {
+                activeMenu: 'dashboard',
+                alertCount: 0,
+                dashboardStats: [
+                    { title: '物料总数', value: 0, trend: null },
+                    { title: '库存总值', value: '¥0', trend: null },
+                    { title: '低库存预警', value: 0, alert: 0 },
+                    { title: '今日出入库', value: 0, trend: null }
+                ],
+                trendChart: null,
+                categoryChart: null,
+                stockStatusChart: null
+            }
+        },
+        mounted() {
+            this.loadDashboardData();
+            this.initCharts();
+        },
+        methods: {
+            handleMenuSelect(index) {
+                this.activeMenu = index;
+                if (index === 'dashboard') {
+                    this.$nextTick(() => {
+                        this.initCharts();
+                    });
+                }
+            },
+            async loadDashboardData() {
+                try {
+                    const overviewRes = await axios.get('/api/statistics/overview');
+                    if (overviewRes.data.code === 200) {
+                        const data = overviewRes.data.data;
+                        this.dashboardStats[0].value = data.totalMaterials || 0;
+                        this.dashboardStats[1].value = '¥' + (data.totalValue || 0).toLocaleString();
+                        this.dashboardStats[3].value = data.todayInout || 0;
+                    }
+
+                    const alertRes = await axios.get('/api/alert/unhandled');
+                    if (alertRes.data.code === 200) {
+                        this.alertCount = alertRes.data.data.length;
+                        this.dashboardStats[2].value = this.alertCount;
+                        this.dashboardStats[2].alert = this.alertCount;
+                    }
+                } catch (error) {
+                    console.error('加载数据失败:', error);
+                }
+            },
+            initCharts() {
+                this.initTrendChart();
+                this.initCategoryChart();
+                this.initStockStatusChart();
+            },
+            initTrendChart() {
+                if (this.trendChart) {
+                    this.trendChart.dispose();
+                }
+                this.trendChart = echarts.init(document.getElementById('trendChart'));
+
+                const option = {
+                    tooltip: { trigger: 'axis' },
+                    legend: { data: ['入库', '出库'] },
+                    xAxis: {
+                        type: 'category',
+                        data: this.generateDateRange(30)
+                    },
+                    yAxis: { type: 'value' },
+                    series: [
+                        {
+                            name: '入库',
+                            type: 'line',
+                            data: this.generateRandomData(30, 50, 200),
+                            smooth: true,
+                            itemStyle: { color: '#67c23a' }
+                        },
+                        {
+                            name: '出库',
+                            type: 'line',
+                            data: this.generateRandomData(30, 40, 180),
+                            smooth: true,
+                            itemStyle: { color: '#f56c6c' }
+                        }
+                    ]
+                };
+                this.trendChart.setOption(option);
+            },
+            initCategoryChart() {
+                if (this.categoryChart) {
+                    this.categoryChart.dispose();
+                }
+                this.categoryChart = echarts.init(document.getElementById('categoryChart'));
+
+                const option = {
+                    tooltip: { trigger: 'item' },
+                    series: [{
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        data: [
+                            { value: 335, name: '电子元件' },
+                            { value: 234, name: '机械零件' },
+                            { value: 135, name: '化工原料' },
+                            { value: 148, name: '包装材料' },
+                            { value: 178, name: '其他' }
+                        ],
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 10,
+                                shadowOffsetX: 0,
+                                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        }
+                    }]
+                };
+                this.categoryChart.setOption(option);
+            },
+            initStockStatusChart() {
+                if (this.stockStatusChart) {
+                    this.stockStatusChart.dispose();
+                }
+                this.stockStatusChart = echarts.init(document.getElementById('stockStatusChart'));
+
+                const option = {
+                    tooltip: { trigger: 'item' },
+                    series: [{
+                        type: 'pie',
+                        radius: '70%',
+                        data: [
+                            { value: 680, name: '正常', itemStyle: { color: '#67c23a' } },
+                            { value: 45, name: '低库存', itemStyle: { color: '#f56c6c' } },
+                            { value: 15, name: '高库存', itemStyle: { color: '#e6a23c' } }
+                        ]
+                    }]
+                };
+                this.stockStatusChart.setOption(option);
+            },
+            generateDateRange(days) {
+                const dates = [];
+                for (let i = days - 1; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    dates.push((date.getMonth() + 1) + '/' + date.getDate());
+                }
+                return dates;
+            },
+            generateRandomData(count, min, max) {
+                return Array.from({ length: count }, () =>
+                    Math.floor(Math.random() * (max - min + 1)) + min
+                );
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>

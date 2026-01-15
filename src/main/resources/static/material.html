@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物料管理</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.9/vue.global.prod.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .toolbar {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-tag {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .status-normal { background: #f0f9ff; color: #67c23a; }
+        .status-low { background: #fef0f0; color: #f56c6c; }
+        .status-high { background: #fdf6ec; color: #e6a23c; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-card>
+        <div class="toolbar">
+            <div>
+                <el-button type="primary" @click="showAddDialog">
+                    <i class="el-icon-plus"></i> 新增物料
+                </el-button>
+                <el-button @click="loadMaterials">
+                    <i class="el-icon-refresh"></i> 刷新
+                </el-button>
+                <el-button type="warning" @click="showLowStock">低库存预警</el-button>
+                <el-button type="danger" @click="showHighStock">高库存预警</el-button>
+            </div>
+            <div style="width: 300px;">
+                <el-input
+                        v-model="searchKeyword"
+                        placeholder="搜索物料编号/名称/规格"
+                        clearable
+                        @clear="loadMaterials"
+                        @keyup.enter="searchMaterials">
+                    <template #append>
+                        <el-button @click="searchMaterials">
+                            <i class="el-icon-search"></i>
+                        </el-button>
+                    </template>
+                </el-input>
+            </div>
+        </div>
+
+        <!-- 物料列表 -->
+        <el-table :data="materialList" stripe border style="width: 100%">
+            <el-table-column prop="materialId" label="物料编号" width="120"></el-table-column>
+            <el-table-column prop="materialName" label="物料名称" width="150"></el-table-column>
+            <el-table-column prop="specification" label="规格型号" width="120"></el-table-column>
+            <el-table-column prop="categoryName" label="类别" width="100"></el-table-column>
+            <el-table-column prop="currentStock" label="当前库存" width="100" align="right">
+                <template #default="scope">
+                        <span :style="{color: getStockColor(scope.row)}">
+                            {{ scope.row.currentStock }}
+                        </span>
+                </template>
+            </el-table-column>
+            <el-table-column label="安全库存" width="120" align="center">
+                <template #default="scope">
+                    {{ scope.row.safeStockMin }} ~ {{ scope.row.safeStockMax }}
+                </template>
+            </el-table-column>
+            <el-table-column prop="unit" label="单位" width="80"></el-table-column>
+            <el-table-column prop="supplier" label="供应商" width="120"></el-table-column>
+            <el-table-column label="库存状态" width="100" align="center">
+                <template #default="scope">
+                        <span :class="'status-tag status-' + getStatusClass(scope.row.stockStatus)">
+                            {{ scope.row.stockStatus }}
+                        </span>
+                </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+                <template #default="scope">
+                    <el-button size="small" @click="showEditDialog(scope.row)">编辑</el-button>
+                    <el-button size="small" type="warning" @click="showSafeStockDialog(scope.row)">调整库存</el-button>
+                    <el-button size="small" type="danger" @click="deleteMaterial(scope.row)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+    </el-card>
+
+    <!-- 新增/编辑物料对话框 -->
+    <el-dialog v-model="materialDialog.visible" :title="materialDialog.title" width="600px">
+        <el-form :model="materialForm" :rules="materialRules" ref="materialFormRef" label-width="120px">
+            <el-form-item label="物料编号" prop="materialId">
+                <el-input v-model="materialForm.materialId" :disabled="materialDialog.isEdit"></el-input>
+            </el-form-item>
+            <el-form-item label="物料名称" prop="materialName">
+                <el-input v-model="materialForm.materialName"></el-input>
+            </el-form-item>
+            <el-form-item label="规格型号">
+                <el-input v-model="materialForm.specification"></el-input>
+            </el-form-item>
+            <el-form-item label="物料类别" prop="categoryId">
+                <el-select v-model="materialForm.categoryId" style="width: 100%">
+                    <el-option v-for="cat in categories" :key="cat.categoryId"
+                               :label="cat.categoryName" :value="cat.categoryId">
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="计量单位" prop="unit">
+                <el-input v-model="materialForm.unit"></el-input>
+            </el-form-item>
+            <el-form-item label="安全库存下限" prop="safeStockMin">
+                <el-input-number v-model="materialForm.safeStockMin" :min="0" :precision="2" style="width: 100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="安全库存上限" prop="safeStockMax">
+                <el-input-number v-model="materialForm.safeStockMax" :min="0" :precision="2" style="width: 100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="初始库存" v-if="!materialDialog.isEdit">
+                <el-input-number v-model="materialForm.currentStock" :min="0" :precision="2" style="width: 100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="单价">
+                <el-input-number v-model="materialForm.unitPrice" :min="0" :precision="2" style="width: 100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="供应商">
+                <el-input v-model="materialForm.supplier"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="materialDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="submitMaterial">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 调整安全库存对话框 -->
+    <el-dialog v-model="safeStockDialog.visible" title="调整安全库存" width="400px">
+        <el-form :model="safeStockForm" label-width="120px">
+            <el-form-item label="物料编号">
+                <span>{{ safeStockForm.materialId }}</span>
+            </el-form-item>
+            <el-form-item label="物料名称">
+                <span>{{ safeStockForm.materialName }}</span>
+            </el-form-item>
+            <el-form-item label="安全库存下限">
+                <el-input-number v-model="safeStockForm.min" :min="0" :precision="2" style="width: 100%"></el-input-number>
+            </el-form-item>
+            <el-form-item label="安全库存上限">
+                <el-input-number v-model="safeStockForm.max" :min="0" :precision="2" style="width: 100%"></el-input-number>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="safeStockDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="submitSafeStock">确定</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script>
+    const { createApp } = Vue;
+    const { ElMessage, ElMessageBox } = ElementPlus;
+
+    axios.defaults.baseURL = '/warehouse';
+
+    createApp({
+        data() {
+            return {
+                searchKeyword: '',
+                materialList: [],
+                categories: [],
+                materialDialog: {
+                    visible: false,
+                    title: '新增物料',
+                    isEdit: false
+                },
+                materialForm: {
+                    materialId: '',
+                    materialName: '',
+                    specification: '',
+                    categoryId: null,
+                    unit: '',
+                    safeStockMin: 0,
+                    safeStockMax: 0,
+                    currentStock: 0,
+                    unitPrice: 0,
+                    supplier: ''
+                },
+                materialRules: {
+                    materialId: [{ required: true, message: '请输入物料编号', trigger: 'blur' }],
+                    materialName: [{ required: true, message: '请输入物料名称', trigger: 'blur' }],
+                    categoryId: [{ required: true, message: '请选择物料类别', trigger: 'change' }],
+                    unit: [{ required: true, message: '请输入计量单位', trigger: 'blur' }],
+                    safeStockMin: [{ required: true, message: '请输入安全库存下限', trigger: 'blur' }],
+                    safeStockMax: [{ required: true, message: '请输入安全库存上限', trigger: 'blur' }]
+                },
+                safeStockDialog: {
+                    visible: false
+                },
+                safeStockForm: {
+                    materialId: '',
+                    materialName: '',
+                    min: 0,
+                    max: 0
+                }
+            }
+        },
+        mounted() {
+            this.loadMaterials();
+            this.loadCategories();
+        },
+        methods: {
+            async loadMaterials() {
+                try {
+                    const res = await axios.get('/api/material/list');
+                    if (res.data.code === 200) {
+                        this.materialList = res.data.data;
+                    }
+                } catch (error) {
+                    ElMessage.error('加载物料列表失败');
+                }
+            },
+            async loadCategories() {
+                try {
+                    const res = await axios.get('/api/material/categories');
+                    if (res.data.code === 200) {
+                        this.categories = res.data.data;
+                    }
+                } catch (error) {
+                    console.error('加载类别失败:', error);
+                }
+            },
+            async searchMaterials() {
+                try {
+                    const res = await axios.get('/api/material/search', {
+                        params: { keyword: this.searchKeyword }
+                    });
+                    if (res.data.code === 200) {
+                        this.materialList = res.data.data;
+                    }
+                } catch (error) {
+                    ElMessage.error('搜索失败');
+                }
+            },
+            async showLowStock() {
+                try {
+                    const res = await axios.get('/api/material/lowStock');
+                    if (res.data.code === 200) {
+                        this.materialList = res.data.data;
+                        ElMessage.warning(`发现${res.data.data.length}个低库存物料`);
+                    }
+                } catch (error) {
+                    ElMessage.error('查询失败');
+                }
+            },
+            async showHighStock() {
+                try {
+                    const res = await axios.get('/api/material/highStock');
+                    if (res.data.code === 200) {
+                        this.materialList = res.data.data;
+                        ElMessage.warning(`发现${res.data.data.length}个高库存物料`);
+                    }
+                } catch (error) {
+                    ElMessage.error('查询失败');
+                }
+            },
+            showAddDialog() {
+                this.materialDialog.visible = true;
+                this.materialDialog.title = '新增物料';
+                this.materialDialog.isEdit = false;
+                this.resetForm();
+            },
+            showEditDialog(row) {
+                this.materialDialog.visible = true;
+                this.materialDialog.title = '编辑物料';
+                this.materialDialog.isEdit = true;
+                this.materialForm = { ...row };
+            },
+            showSafeStockDialog(row) {
+                this.safeStockDialog.visible = true;
+                this.safeStockForm = {
+                    materialId: row.materialId,
+                    materialName: row.materialName,
+                    min: row.safeStockMin,
+                    max: row.safeStockMax
+                };
+            },
+            async submitMaterial() {
+                try {
+                    await this.$refs.materialFormRef.validate();
+
+                    const url = this.materialDialog.isEdit ? '/api/material/update' : '/api/material/add';
+                    const method = this.materialDialog.isEdit ? 'put' : 'post';
+
+                    const res = await axios[method](url, this.materialForm);
+                    if (res.data.code === 200) {
+                        ElMessage.success(res.data.message);
+                        this.materialDialog.visible = false;
+                        this.loadMaterials();
+                    } else {
+                        ElMessage.error(res.data.message);
+                    }
+                } catch (error) {
+                    if (error.response) {
+                        ElMessage.error(error.response.data.message || '操作失败');
+                    }
+                }
+            },
+            async submitSafeStock() {
+                try {
+                    const res = await axios.put('/api/material/updateSafeStock', null, {
+                        params: {
+                            materialId: this.safeStockForm.materialId,
+                            min: this.safeStockForm.min,
+                            max: this.safeStockForm.max
+                        }
+                    });
+                    if (res.data.code === 200) {
+                        ElMessage.success('安全库存调整成功');
+                        this.safeStockDialog.visible = false;
+                        this.loadMaterials();
+                    }
+                } catch (error) {
+                    ElMessage.error(error.response?.data?.message || '调整失败');
+                }
+            },
+            deleteMaterial(row) {
+                ElMessageBox.confirm(`确定要删除物料 "${row.materialName}" 吗?`, '警告', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(async () => {
+                    try {
+                        const res = await axios.delete(`/api/material/delete/${row.materialId}`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('删除成功');
+                            this.loadMaterials();
+                        }
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.message || '删除失败');
+                    }
+                }).catch(() => {});
+            },
+            resetForm() {
+                this.materialForm = {
+                    materialId: '',
+                    materialName: '',
+                    specification: '',
+                    categoryId: null,
+                    unit: '',
+                    safeStockMin: 0,
+                    safeStockMax: 0,
+                    currentStock: 0,
+                    unitPrice: 0,
+                    supplier: ''
+                };
+            },
+            getStockColor(row) {
+                if (row.currentStock < row.safeStockMin) return '#f56c6c';
+                if (row.currentStock > row.safeStockMax) return '#e6a23c';
+                return '#67c23a';
+            },
+            getStatusClass(status) {
+                if (status === '低库存') return 'low';
+                if (status === '高库存') return 'high';
+                return 'normal';
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>

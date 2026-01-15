@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出入库管理</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.9/vue.global.prod.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .inout-tabs {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .type-in { color: #67c23a; }
+        .type-out { color: #f56c6c; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-card class="inout-tabs">
+        <el-tabs v-model="activeTab">
+            <!-- 出入库操作 -->
+            <el-tab-pane label="出入库操作" name="operate">
+                <el-row :gutter="20">
+                    <el-col :span="10">
+                        <el-card header="出入库单据">
+                            <el-form :model="inoutForm" :rules="inoutRules" ref="inoutFormRef" label-width="100px">
+                                <el-form-item label="操作类型" prop="inoutType">
+                                    <el-radio-group v-model="inoutForm.inoutType">
+                                        <el-radio label="入库">
+                                            <span class="type-in">入库</span>
+                                        </el-radio>
+                                        <el-radio label="出库">
+                                            <span class="type-out">出库</span>
+                                        </el-radio>
+                                    </el-radio-group>
+                                </el-form-item>
+
+                                <el-form-item label="物料" prop="materialId">
+                                    <el-select
+                                            v-model="inoutForm.materialId"
+                                            filterable
+                                            placeholder="请选择物料"
+                                            style="width: 100%"
+                                            @change="handleMaterialChange">
+                                        <el-option
+                                                v-for="m in materials"
+                                                :key="m.materialId"
+                                                :label="`${m.materialId} - ${m.materialName}`"
+                                                :value="m.materialId">
+                                        </el-option>
+                                    </el-select>
+                                </el-form-item>
+
+                                <el-form-item label="当前库存">
+                                    <el-input v-model="currentStock" disabled></el-input>
+                                </el-form-item>
+
+                                <el-form-item label="数量" prop="quantity">
+                                    <el-input-number
+                                            v-model="inoutForm.quantity"
+                                            :min="0.01"
+                                            :precision="2"
+                                            style="width: 100%">
+                                    </el-input-number>
+                                </el-form-item>
+
+                                <el-form-item label="操作员" prop="operatorId">
+                                    <el-input v-model="inoutForm.operatorId"></el-input>
+                                </el-form-item>
+
+                                <el-form-item label="备注">
+                                    <el-input
+                                            v-model="inoutForm.remark"
+                                            type="textarea"
+                                            :rows="3"
+                                            placeholder="请输入备注信息">
+                                    </el-input>
+                                </el-form-item>
+
+                                <el-form-item>
+                                    <el-button
+                                            type="primary"
+                                            @click="submitInout"
+                                            :loading="submitting">
+                                        提交{{ inoutForm.inoutType }}单据
+                                    </el-button>
+                                    <el-button @click="resetInoutForm">重置</el-button>
+                                </el-form-item>
+                            </el-form>
+                        </el-card>
+                    </el-col>
+
+                    <el-col :span="14">
+                        <el-card header="最近操作记录">
+                            <el-table :data="recentRecords" stripe max-height="500">
+                                <el-table-column prop="recordId" label="单据号" width="180"></el-table-column>
+                                <el-table-column label="类型" width="80" align="center">
+                                    <template #default="scope">
+                                            <span :class="scope.row.inoutType === '入库' ? 'type-in' : 'type-out'">
+                                                {{ scope.row.inoutType }}
+                                            </span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="materialName" label="物料名称" width="120"></el-table-column>
+                                <el-table-column prop="quantity" label="数量" width="80" align="right"></el-table-column>
+                                <el-table-column prop="operatorName" label="操作员" width="100"></el-table-column>
+                                <el-table-column label="操作时间" width="160">
+                                    <template #default="scope">
+                                        {{ formatDateTime(scope.row.operationTime) }}
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </el-card>
+                    </el-col>
+                </el-row>
+            </el-tab-pane>
+
+            <!-- 物料追溯 -->
+            <el-tab-pane label="物料追溯" name="trace">
+                <el-form inline>
+                    <el-form-item label="物料">
+                        <el-select
+                                v-model="traceForm.materialId"
+                                filterable
+                                placeholder="请选择物料"
+                                style="width: 250px">
+                            <el-option
+                                    v-for="m in materials"
+                                    :key="m.materialId"
+                                    :label="`${m.materialId} - ${m.materialName}`"
+                                    :value="m.materialId">
+                            </el-option>
+                        </el-select>
+                    </el-form-item>
+
+                    <el-form-item label="时间范围">
+                        <el-date-picker
+                                v-model="traceForm.dateRange"
+                                type="datetimerange"
+                                range-separator="至"
+                                start-placeholder="开始时间"
+                                end-placeholder="结束时间">
+                        </el-date-picker>
+                    </el-form-item>
+
+                    <el-form-item>
+                        <el-button type="primary" @click="traceMaterial">查询</el-button>
+                    </el-form-item>
+                </el-form>
+
+                <el-table :data="traceRecords" stripe border>
+                    <el-table-column type="index" label="序号" width="60"></el-table-column>
+                    <el-table-column prop="recordId" label="单据号" width="180"></el-table-column>
+                    <el-table-column label="类型" width="80" align="center">
+                        <template #default="scope">
+                            <el-tag :type="scope.row.inoutType === '入库' ? 'success' : 'danger'">
+                                {{ scope.row.inoutType }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="quantity" label="数量" width="100" align="right"></el-table-column>
+                    <el-table-column prop="beforeStock" label="操作前库存" width="120" align="right"></el-table-column>
+                    <el-table-column prop="afterStock" label="操作后库存" width="120" align="right"></el-table-column>
+                    <el-table-column prop="operatorName" label="操作员" width="100"></el-table-column>
+                    <el-table-column label="操作时间" width="160">
+                        <template #default="scope">
+                            {{ formatDateTime(scope.row.operationTime) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="remark" label="备注" min-width="150"></el-table-column>
+                </el-table>
+            </el-tab-pane>
+        </el-tabs>
+    </el-card>
+</div>
+
+<script>
+    const { createApp } = Vue;
+    const { ElMessage } = ElementPlus;
+
+    axios.defaults.baseURL = '/warehouse';
+
+    createApp({
+        data() {
+            return {
+                activeTab: 'operate',
+                materials: [],
+                currentStock: '',
+                submitting: false,
+                inoutForm: {
+                    materialId: '',
+                    inoutType: '入库',
+                    quantity: null,
+                    operatorId: 'OP001',
+                    remark: ''
+                },
+                inoutRules: {
+                    materialId: [{ required: true, message: '请选择物料', trigger: 'change' }],
+                    inoutType: [{ required: true, message: '请选择操作类型', trigger: 'change' }],
+                    quantity: [{ required: true, message: '请输入数量', trigger: 'blur' }],
+                    operatorId: [{ required: true, message: '请输入操作员', trigger: 'blur' }]
+                },
+                recentRecords: [],
+                traceForm: {
+                    materialId: '',
+                    dateRange: null
+                },
+                traceRecords: []
+            }
+        },
+        mounted() {
+            this.loadMaterials();
+            this.loadRecentRecords();
+        },
+        methods: {
+            async loadMaterials() {
+                try {
+                    const res = await axios.get('/api/material/list');
+                    if (res.data.code === 200) {
+                        this.materials = res.data.data;
+                    }
+                } catch (error) {
+                    console.error('加载物料失败:', error);
+                }
+            },
+            async loadRecentRecords() {
+                try {
+                    const res = await axios.get('/api/inout/recent', {
+                        params: { limit: 20 }
+                    });
+                    if (res.data.code === 200) {
+                        this.recentRecords = res.data.data;
+                    }
+                } catch (error) {
+                    console.error('加载记录失败:', error);
+                }
+            },
+            handleMaterialChange(materialId) {
+                const material = this.materials.find(m => m.materialId === materialId);
+                if (material) {
+                    this.currentStock = `${material.currentStock} ${material.unit}`;
+                }
+            },
+            async submitInout() {
+                try {
+                    await this.$refs.inoutFormRef.validate();
+
+                    this.submitting = true;
+                    const res = await axios.post('/api/inout/operate', this.inoutForm);
+
+                    if (res.data.code === 200) {
+                        ElMessage.success({
+                            message: `${this.inoutForm.inoutType}操作成功！单据号: ${res.data.data.recordId}`,
+                            duration: 3000
+                        });
+                        this.resetInoutForm();
+                        this.loadRecentRecords();
+                        this.loadMaterials();
+                    }
+                } catch (error) {
+                    ElMessage.error(error.response?.data?.message || '操作失败');
+                } finally {
+                    this.submitting = false;
+                }
+            },
+            async traceMaterial() {
+                if (!this.traceForm.materialId) {
+                    ElMessage.warning('请选择物料');
+                    return;
+                }
+
+                try {
+                    const params = {
+                        materialId: this.traceForm.materialId,
+                        startDate: this.traceForm.dateRange ? this.traceForm.dateRange[0] : null,
+                        endDate: this.traceForm.dateRange ? this.traceForm.dateRange[1] : null
+                    };
+
+                    const res = await axios.post('/api/inout/trace', params);
+                    if (res.data.code === 200) {
+                        this.traceRecords = res.data.data;
+                        ElMessage.success(`查询到${res.data.data.length}条记录`);
+                    }
+                } catch (error) {
+                    ElMessage.error('查询失败');
+                }
+            },
+            resetInoutForm() {
+                this.inoutForm = {
+                    materialId: '',
+                    inoutType: '入库',
+                    quantity: null,
+                    operatorId: 'OP001',
+                    remark: ''
+                };
+                this.currentStock = '';
+                this.$refs.inoutFormRef?.resetFields();
+            },
+            formatDateTime(dateTime) {
+                if (!dateTime) return '';
+                return new Date(dateTime).toLocaleString('zh-CN');
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>库存预警</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.9/vue.global.prod.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-card>
+        <template #header>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>库存预警管理</span>
+                <div>
+                    <el-radio-group v-model="filterType" @change="loadAlerts">
+                        <el-radio-button label="">全部</el-radio-button>
+                        <el-radio-button label="低库存">低库存</el-radio-button>
+                        <el-radio-button label="高库存">高库存</el-radio-button>
+                        <el-radio-button label="预测缺货">预测缺货</el-radio-button>
+                    </el-radio-group>
+                    <el-button @click="loadAlerts" style="margin-left: 10px;">
+                        <i class="el-icon-refresh"></i> 刷新
+                    </el-button>
+                </div>
+            </div>
+        </template>
+
+        <el-table :data="alertList" stripe>
+            <el-table-column type="index" label="序号" width="60"></el-table-column>
+            <el-table-column prop="materialId" label="物料编号" width="120"></el-table-column>
+            <el-table-column prop="materialName" label="物料名称" width="150"></el-table-column>
+            <el-table-column label="预警类型" width="120" align="center">
+                <template #default="scope">
+                    <el-tag
+                            :type="getAlertTagType(scope.row.alertType)"
+                            effect="dark">
+                        {{ scope.row.alertType }}
+                    </el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column prop="currentStock" label="当前库存" width="100" align="right"></el-table-column>
+            <el-table-column prop="safeThreshold" label="安全阈值" width="100" align="right"></el-table-column>
+            <el-table-column label="预警描述" min-width="200">
+                <template #default="scope">
+                    {{ generateAlertDesc(scope.row) }}
+                </template>
+            </el-table-column>
+            <el-table-column label="预警时间" width="160">
+                <template #default="scope">
+                    {{ formatDateTime(scope.row.alertTime) }}
+                </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100" align="center">
+                <template #default="scope">
+                    <el-tag :type="scope.row.status === '未处理' ? 'danger' : 'success'">
+                        {{ scope.row.status }}
+                    </el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" fixed="right">
+                <template #default="scope">
+                    <el-button
+                            v-if="scope.row.status === '未处理'"
+                            size="small"
+                            type="primary"
+                            @click="showHandleDialog(scope.row)">
+                        处理
+                    </el-button>
+                    <span v-else style="color: #67c23a;">已处理</span>
+                </template>
+            </el-table-column>
+        </el-table>
+    </el-card>
+
+    <!-- 处理预警对话框 -->
+    <el-dialog v-model="handleDialog.visible" title="处理预警" width="500px">
+        <el-form label-width="100px">
+            <el-form-item label="物料编号">
+                <span>{{ handleDialog.alert?.materialId }}</span>
+            </el-form-item>
+            <el-form-item label="物料名称">
+                <span>{{ handleDialog.alert?.materialName }}</span>
+            </el-form-item>
+            <el-form-item label="预警类型">
+                <el-tag :type="getAlertTagType(handleDialog.alert?.alertType)">
+                    {{ handleDialog.alert?.alertType }}
+                </el-tag>
+            </el-form-item>
+            <el-form-item label="处理说明">
+                <el-input
+                        v-model="handleDialog.remark"
+                        type="textarea"
+                        :rows="4"
+                        placeholder="请输入处理说明">
+                </el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="handleDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="handleAlert">确定</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script>
+    const { createApp } = Vue;
+    const { ElMessage } = ElementPlus;
+
+    axios.defaults.baseURL = '/warehouse';
+
+    createApp({
+        data() {
+            return {
+                filterType: '',
+                alertList: [],
+                handleDialog: {
+                    visible: false,
+                    alert: null,
+                    remark: ''
+                }
+            }
+        },
+        mounted() {
+            this.loadAlerts();
+        },
+        methods: {
+            async loadAlerts() {
+                try {
+                    const res = await axios.get('/api/alert/unhandled', {
+                        params: { alertType: this.filterType || null }
+                    });
+                    if (res.data.code === 200) {
+                        this.alertList = res.data.data;
+                    }
+                } catch (error) {
+                    ElMessage.error('加载预警失败');
+                }
+            },
+            showHandleDialog(alert) {
+                this.handleDialog.visible = true;
+                this.handleDialog.alert = alert;
+                this.handleDialog.remark = '';
+            },
+            async handleAlert() {
+                if (!this.handleDialog.remark.trim()) {
+                    ElMessage.warning('请输入处理说明');
+                    return;
+                }
+
+                try {
+                    const res = await axios.put('/api/alert/handle', null, {
+                        params: {
+                            alertId: this.handleDialog.alert.alertId,
+                            handleRemark: this.handleDialog.remark
+                        }
+                    });
+
+                    if (res.data.code === 200) {
+                        ElMessage.success('预警处理成功');
+                        this.handleDialog.visible = false;
+                        this.loadAlerts();
+                    }
+                } catch (error) {
+                    ElMessage.error('处理失败');
+                }
+            },
+            getAlertTagType(type) {
+                const types = {
+                    '低库存': 'danger',
+                    '高库存': 'warning',
+                    '预测缺货': 'danger'
+                };
+                return types[type] || 'info';
+            },
+            generateAlertDesc(alert) {
+                if (alert.alertType === '低库存') {
+                    return `当前库存${alert.currentStock}，低于安全下限${alert.safeThreshold}`;
+                } else if (alert.alertType === '高库存') {
+                    return `当前库存${alert.currentStock}，超过安全上限${alert.safeThreshold}`;
+                } else {
+                    return `预测未来库存将低于安全下限${alert.safeThreshold}`;
+                }
+            },
+            formatDateTime(dateTime) {
+                if (!dateTime) return '';
+                return new Date(dateTime).toLocaleString('zh-CN');
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>
