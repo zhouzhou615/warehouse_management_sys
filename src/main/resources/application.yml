@@ -2,11 +2,12 @@ spring:
   application:
     name: warehouse_management_sys
 
-  # ?????
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://192.168.240.130:5432/warehouse_management
+    url: jdbc:postgresql://192.168.240.130:26000/warehouse_management
+#    driver-class-name: org.opengauss.Driver
+#    url: jdbc:opengauss://192.168.240.130:5432/warehouse_management
     username: dboper
     password: dboper@123
 
@@ -29,30 +30,30 @@ spring:
         login-username: admin
         login-password: admin
 
-  # ??????
+
   web:
     resources:
       static-locations: classpath:/static/
 
-# ????? - ?????????spring???
+
 server:
   port: 8080
   servlet:
     context-path: /warehouse
 
-# MyBatis?? - ????????
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: com.warehouse.entity
+  type-aliases-package: org.example.warehouse_management_sys.Entity
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
-# ???? - ????????
+
 logging:
   level:
-    com.warehouse: debug
-    com.warehouse.mapper: debug
+    org.example.warehouse_management_sys: debug
+    org.example.warehouse_management_sys.Mapper: debug
     org.springframework: debug
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n'

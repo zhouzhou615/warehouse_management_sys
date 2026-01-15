@@ -1,12 +1,13 @@
 package org.example.warehouse_management_sys.Mapper;
 
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.example.warehouse_management_sys.Entity.InoutRecord;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-
+@Mapper
 public interface InoutRecordMapper {
 
     // 插入出入库记录

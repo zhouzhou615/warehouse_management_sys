@@ -41,8 +41,8 @@
                 <el-button @click="loadMaterials">
                     <i class="el-icon-refresh"></i> 刷新
                 </el-button>
-                <el-button type="warning" @click="showLowStock">低库存预警</el-button>
-                <el-button type="danger" @click="showHighStock">高库存预警</el-button>
+                <el-button type="warning" @click="showLowStock">低库存物料</el-button>
+                <el-button type="danger" @click="showHighStock">高库存物料</el-button>
             </div>
             <div style="width: 300px;">
                 <el-input
@@ -68,9 +68,9 @@
             <el-table-column prop="categoryName" label="类别" width="100"></el-table-column>
             <el-table-column prop="currentStock" label="当前库存" width="100" align="right">
                 <template #default="scope">
-                        <span :style="{color: getStockColor(scope.row)}">
-                            {{ scope.row.currentStock }}
-                        </span>
+                    <span :style="{color: getStockColor(scope.row)}">
+                        {{ scope.row.currentStock }} {{ scope.row.unit }}
+                    </span>
                 </template>
             </el-table-column>
             <el-table-column label="安全库存" width="120" align="center">
@@ -79,12 +79,12 @@
                 </template>
             </el-table-column>
             <el-table-column prop="unit" label="单位" width="80"></el-table-column>
-            <el-table-column prop="supplier" label="供应商" width="120"></el-table-column>
+            <el-table-column prop="supplierName" label="供应商" width="120"></el-table-column>
             <el-table-column label="库存状态" width="100" align="center">
                 <template #default="scope">
-                        <span :class="'status-tag status-' + getStatusClass(scope.row.stockStatus)">
-                            {{ scope.row.stockStatus }}
-                        </span>
+                    <span :class="'status-tag status-' + getStatusClass(scope.row.stockStatus)">
+                        {{ scope.row.stockStatus || '正常' }}
+                    </span>
                 </template>
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
@@ -131,8 +131,8 @@
             <el-form-item label="单价">
                 <el-input-number v-model="materialForm.unitPrice" :min="0" :precision="2" style="width: 100%"></el-input-number>
             </el-form-item>
-            <el-form-item label="供应商">
-                <el-input v-model="materialForm.supplier"></el-input>
+            <el-form-item label="供应商ID">
+                <el-input v-model="materialForm.supplierId" placeholder="输入供应商ID"></el-input>
             </el-form-item>
         </el-form>
         <template #footer>
@@ -191,7 +191,7 @@
                     safeStockMax: 0,
                     currentStock: 0,
                     unitPrice: 0,
-                    supplier: ''
+                    supplierId: ''
                 },
                 materialRules: {
                     materialId: [{ required: true, message: '请输入物料编号', trigger: 'blur' }],
@@ -359,7 +359,7 @@
                     safeStockMax: 0,
                     currentStock: 0,
                     unitPrice: 0,
-                    supplier: ''
+                    supplierId: ''
                 };
             },
             getStockColor(row) {

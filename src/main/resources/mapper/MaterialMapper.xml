@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.warehouse.mapper.MaterialMapper">
+<mapper namespace="org.example.warehouse_management_sys.Mapper.MaterialMapper">
 
     <!-- 物料结果映射（包含供应商信息） -->
-    <resultMap id="MaterialResultMap" type="com.warehouse.entity.Material">
+    <resultMap id="MaterialResultMap" type="org.example.warehouse_management_sys.Entity.Material">
         <id property="materialId" column="material_id"/>
         <result property="materialName" column="material_name"/>
         <result property="specification" column="specification"/>
@@ -24,7 +24,7 @@
     </resultMap>
 
     <!-- 插入物料 -->
-    <insert id="insert" parameterType="com.warehouse.entity.Material">
+    <insert id="insert" parameterType="org.example.warehouse_management_sys.Entity.Material">
         INSERT INTO MATERIAL (
             material_id, material_name, specification, category_id,
             unit, safe_stock_min, safe_stock_max, current_stock,
@@ -38,7 +38,7 @@
     </insert>
 
     <!-- 更新物料 -->
-    <update id="update" parameterType="com.warehouse.entity.Material">
+    <update id="update" parameterType="org.example.warehouse_management_sys.Entity.Material">
         UPDATE MATERIAL
         SET material_name = #{materialName},
             specification = #{specification},
@@ -46,7 +46,7 @@
             unit = #{unit},
             unit_price = #{unitPrice},
             supplier_id = #{supplierId},
-            update_time = CURRENT_TIMESTAMP
+            update_time = NOW()
         WHERE material_id = #{materialId}
     </update>
 
@@ -55,7 +55,7 @@
         UPDATE MATERIAL
         SET safe_stock_min = #{safeStockMin},
             safe_stock_max = #{safeStockMax},
-            update_time = CURRENT_TIMESTAMP
+            update_time = NOW()
         WHERE material_id = #{materialId}
     </update>
 
@@ -137,7 +137,7 @@
     </select>
 
     <!-- 查询所有类别 -->
-    <select id="selectAllCategories" resultType="com.warehouse.entity.MaterialCategory">
+    <select id="selectAllCategories" resultType="org.example.warehouse_management_sys.Entity.MaterialCategory">
         SELECT category_id, category_name, category_desc, parent_id, create_time
         FROM MATERIAL_CATEGORY
         ORDER BY category_id

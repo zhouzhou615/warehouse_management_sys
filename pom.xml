@@ -12,7 +12,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.warehouse</groupId>
+    <groupId>org.example.warehouse_management_sys</groupId>
     <artifactId>industrial-warehouse</artifactId>
     <version>1.0.0</version>
     <name>Industrial Warehouse Management System</name>
@@ -45,6 +45,13 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
             <version>42.6.0</version>
+        </dependency>
+
+        <!-- OpenGauss JDBC Driver -->
+        <dependency>
+            <groupId>org.opengauss</groupId>
+            <artifactId>opengauss-jdbc</artifactId>
+            <version>3.1.0</version>
         </dependency>
 
 

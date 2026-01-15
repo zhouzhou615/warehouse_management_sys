@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.warehouse.mapper.StatisticsMapper">
+<mapper namespace="org.example.warehouse_management_sys.Mapper.StatisticsMapper">
 
     <!-- 月度出入库统计（包含供应商信息） -->
-    <select id="monthlyStatistics" resultType="com.warehouse.dto.StatisticsDTO">
+    <select id="monthlyStatistics" resultType="org.example.warehouse_management_sys.DTO.StatisticsDTO">
         SELECT
             ir.material_id AS materialId,
             m.material_name AS materialName,
@@ -25,7 +25,7 @@
     </select>
 
     <!-- 按类别统计流量 -->
-    <select id="categoryFlowStatistics" resultType="com.warehouse.dto.StatisticsDTO">
+    <select id="categoryFlowStatistics" resultType="org.example.warehouse_management_sys.DTO.StatisticsDTO">
         SELECT
             mc.category_name AS categoryName,
             TO_CHAR(ir.operation_time, 'YYYY-MM') AS yearMonth,

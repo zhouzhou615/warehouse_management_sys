@@ -1,11 +1,12 @@
 package org.example.warehouse_management_sys.Mapper;
 
 
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.example.warehouse_management_sys.Entity.Supplier;
 
 import java.util.List;
-
+@Mapper
 public interface SupplierMapper {
 
     // 新增供应商

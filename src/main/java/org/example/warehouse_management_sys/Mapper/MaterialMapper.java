@@ -1,5 +1,6 @@
 package org.example.warehouse_management_sys.Mapper;
 
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.example.warehouse_management_sys.Entity.Material;
 import org.example.warehouse_management_sys.Entity.MaterialCategory;
@@ -7,6 +8,7 @@ import org.example.warehouse_management_sys.Entity.MaterialCategory;
 import java.math.BigDecimal;
 import java.util.List;
 
+@Mapper
 public interface MaterialMapper {
 
     // 新增物料

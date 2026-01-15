@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.warehouse.mapper.SupplierMapper">
+<mapper namespace="org.example.warehouse_management_sys.Mapper.SupplierMapper">
 
     <!-- 供应商结果映射 -->
-    <resultMap id="SupplierResultMap" type="com.warehouse.entity.Supplier">
+    <resultMap id="SupplierResultMap" type="org.example.warehouse_management_sys.Entity.Supplier">
         <id property="supplierId" column="supplier_id"/>
         <result property="supplierName" column="supplier_name"/>
         <result property="contactPerson" column="contact_person"/>
@@ -17,7 +17,7 @@
     </resultMap>
 
     <!-- 插入供应商 -->
-    <insert id="insert" parameterType="com.warehouse.entity.Supplier">
+    <insert id="insert" parameterType="org.example.warehouse_management_sys.Entity.Supplier">
         INSERT INTO SUPPLIER (
             supplier_id, supplier_name, contact_person, phone,
             address, qualification_level, status
@@ -28,7 +28,7 @@
     </insert>
 
     <!-- 更新供应商 -->
-    <update id="update" parameterType="com.warehouse.entity.Supplier">
+    <update id="update" parameterType="org.example.warehouse_management_sys.Entity.Supplier">
         UPDATE SUPPLIER
         SET supplier_name = #{supplierName},
             contact_person = #{contactPerson},

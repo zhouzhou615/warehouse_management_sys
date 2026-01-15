@@ -21,6 +21,15 @@
             padding: 20px;
             margin-bottom: 20px;
         }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            color: #909399;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -32,9 +41,7 @@
                 <el-form inline>
                     <el-form-item label="年份">
                         <el-select v-model="monthlyQuery.year" style="width: 120px">
-                            <el-option :value="2024" label="2024年"></el-option>
-                            <el-option :value="2025" label="2025年"></el-option>
-                            <el-option :value="2026" label="2026年"></el-option>
+                            <el-option v-for="year in yearOptions" :key="year" :value="year" :label="year + '年'"></el-option>
                         </el-select>
                     </el-form-item>
                     <el-form-item label="月份">
@@ -51,21 +58,28 @@
                     <el-table-column type="index" label="序号" width="60"></el-table-column>
                     <el-table-column prop="materialId" label="物料编号" width="120"></el-table-column>
                     <el-table-column prop="materialName" label="物料名称" width="150"></el-table-column>
+                    <el-table-column prop="supplierName" label="供应商" width="120"></el-table-column>
                     <el-table-column prop="inQuantity" label="入库总量" width="120" align="right">
                         <template #default="scope">
-                            <span style="color: #67c23a;">{{ scope.row.inQuantity || 0 }}</span>
+                            <span style="color: #67c23a;">{{ formatNumber(scope.row.inQuantity) }}</span>
                         </template>
                     </el-table-column>
                     <el-table-column prop="outQuantity" label="出库总量" width="120" align="right">
                         <template #default="scope">
-                            <span style="color: #f56c6c;">{{ scope.row.outQuantity || 0 }}</span>
+                            <span style="color: #f56c6c;">{{ formatNumber(scope.row.outQuantity) }}</span>
                         </template>
                     </el-table-column>
                     <el-table-column prop="netChange" label="净变化" width="120" align="right">
                         <template #default="scope">
-                                <span :style="{color: scope.row.netChange >= 0 ? '#67c23a' : '#f56c6c'}">
-                                    {{ scope.row.netChange >= 0 ? '+' : '' }}{{ scope.row.netChange || 0 }}
+                                <span :style="{color: (scope.row.netChange || 0) >= 0 ? '#67c23a' : '#f56c6c'}">
+                                    {{ (scope.row.netChange || 0) >= 0 ? '+' : '' }}{{ formatNumber(scope.row.netChange) }}
                                 </span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="recordCount" label="操作次数" width="100" align="right"></el-table-column>
+                    <el-table-column prop="avgQuantity" label="平均数量" width="120" align="right">
+                        <template #default="scope">
+                            {{ formatNumber(scope.row.avgQuantity) }}
                         </template>
                     </el-table-column>
                 </el-table>
@@ -85,7 +99,9 @@
                                 type="daterange"
                                 range-separator="至"
                                 start-placeholder="开始日期"
-                                end-placeholder="结束日期">
+                                end-placeholder="结束日期"
+                                format="YYYY-MM-DD"
+                                value-format="YYYY-MM-DD">
                         </el-date-picker>
                     </el-form-item>
                     <el-form-item>
@@ -100,9 +116,17 @@
 
                 <el-table :data="categoryStats" stripe border style="margin-top: 20px;">
                     <el-table-column prop="categoryName" label="物料类别" width="150"></el-table-column>
-                    <el-table-column prop="month" label="月份" width="100"></el-table-column>
-                    <el-table-column prop="totalIn" label="入库总量" width="120" align="right"></el-table-column>
-                    <el-table-column prop="totalOut" label="出库总量" width="120" align="right"></el-table-column>
+                    <el-table-column prop="yearMonth" label="月份" width="100"></el-table-column>
+                    <el-table-column prop="inQuantity" label="入库总量" width="120" align="right">
+                        <template #default="scope">
+                            {{ formatNumber(scope.row.inQuantity) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="outQuantity" label="出库总量" width="120" align="right">
+                        <template #default="scope">
+                            {{ formatNumber(scope.row.outQuantity) }}
+                        </template>
+                    </el-table-column>
                     <el-table-column prop="recordCount" label="操作次数" width="100" align="right"></el-table-column>
                 </el-table>
             </el-tab-pane>
@@ -141,6 +165,56 @@
                     <div id="trendChart" style="height: 450px;"></div>
                 </div>
             </el-tab-pane>
+
+            <!-- 统计概览 -->
+            <el-tab-pane label="统计概览" name="overview">
+                <el-row :gutter="20">
+                    <el-col :span="6">
+                        <div class="chart-card">
+                            <div class="stat-label">物料总数</div>
+                            <div class="stat-number">{{ overviewData.total_materials || 0 }}</div>
+                        </div>
+                    </el-col>
+                    <el-col :span="6">
+                        <div class="chart-card">
+                            <div class="stat-label">库存总值</div>
+                            <div class="stat-number">¥{{ formatNumber(overviewData.total_value) }}</div>
+                        </div>
+                    </el-col>
+                    <el-col :span="6">
+                        <div class="chart-card">
+                            <div class="stat-label">低库存物料</div>
+                            <div class="stat-number" style="color: #f56c6c;">{{ overviewData.low_stock_count || 0 }}</div>
+                        </div>
+                    </el-col>
+                    <el-col :span="6">
+                        <div class="chart-card">
+                            <div class="stat-label">高库存物料</div>
+                            <div class="stat-number" style="color: #e6a23c;">{{ overviewData.high_stock_count || 0 }}</div>
+                        </div>
+                    </el-col>
+                </el-row>
+
+                <div class="chart-card" style="margin-top: 20px;">
+                    <h3>供应商统计</h3>
+                    <div id="supplierChart" style="height: 400px;"></div>
+                </div>
+
+                <el-table :data="supplierStats" stripe border style="margin-top: 20px;">
+                    <el-table-column prop="supplier_name" label="供应商名称" width="200"></el-table-column>
+                    <el-table-column prop="material_count" label="物料数量" width="100" align="right"></el-table-column>
+                    <el-table-column prop="total_value" label="库存总值" width="120" align="right">
+                        <template #default="scope">
+                            ¥{{ formatNumber(scope.row.total_value) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="low_stock_count" label="低库存数" width="100" align="right">
+                        <template #default="scope">
+                            <span style="color: #f56c6c;">{{ scope.row.low_stock_count || 0 }}</span>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </el-tab-pane>
         </el-tabs>
     </el-card>
 </div>
@@ -153,11 +227,15 @@
 
     createApp({
         data() {
+            const currentYear = new Date().getFullYear();
+            const yearOptions = Array.from({length: 6}, (_, i) => currentYear - 5 + i);
+
             return {
                 activeTab: 'monthly',
                 materials: [],
+                yearOptions: yearOptions,
                 monthlyQuery: {
-                    year: new Date().getFullYear(),
+                    year: currentYear,
                     month: new Date().getMonth() + 1
                 },
                 monthlyStats: [],
@@ -171,12 +249,17 @@
                     materialId: '',
                     months: 6
                 },
-                trendChart: null
+                trendChart: null,
+                overviewData: {},
+                supplierStats: [],
+                supplierChart: null
             }
         },
         mounted() {
             this.loadMaterials();
             this.loadMonthlyStats();
+            this.loadOverviewData();
+            this.loadSupplierStats();
         },
         methods: {
             async loadMaterials() {
@@ -184,6 +267,9 @@
                     const res = await axios.get('/api/material/list');
                     if (res.data.code === 200) {
                         this.materials = res.data.data;
+                        if (this.materials.length > 0 && !this.trendQuery.materialId) {
+                            this.trendQuery.materialId = this.materials[0].materialId;
+                        }
                     }
                 } catch (error) {
                     console.error('加载物料失败:', error);
@@ -191,7 +277,12 @@
             },
             async loadMonthlyStats() {
                 try {
-                    const res = await axios.post('/api/statistics/monthly', this.monthlyQuery);
+                    const dto = {
+                        year: this.monthlyQuery.year,
+                        month: this.monthlyQuery.month
+                    };
+
+                    const res = await axios.post('/api/statistics/monthly', dto);
                     if (res.data.code === 200) {
                         this.monthlyStats = res.data.data;
                         this.$nextTick(() => {
@@ -208,9 +299,21 @@
                 }
                 this.monthlyChart = echarts.init(document.getElementById('monthlyChart'));
 
+                if (!this.monthlyStats || this.monthlyStats.length === 0) {
+                    const option = {
+                        title: {
+                            text: '暂无数据',
+                            left: 'center',
+                            top: 'center'
+                        }
+                    };
+                    this.monthlyChart.setOption(option);
+                    return;
+                }
+
                 const materials = this.monthlyStats.map(s => s.materialName);
-                const inData = this.monthlyStats.map(s => s.inQuantity || 0);
-                const outData = this.monthlyStats.map(s => s.outQuantity || 0);
+                const inData = this.monthlyStats.map(s => parseFloat(s.inQuantity) || 0);
+                const outData = this.monthlyStats.map(s => parseFloat(s.outQuantity) || 0);
 
                 const option = {
                     tooltip: { trigger: 'axis' },
@@ -239,14 +342,14 @@
                 this.monthlyChart.setOption(option);
             },
             async loadCategoryStats() {
-                if (!this.categoryQuery.dateRange) {
-                    ElMessage.warning('请选择时间范围');
+                if (!this.categoryQuery.dateRange || this.categoryQuery.dateRange.length !== 2) {
+                    ElMessage.warning('请选择完整的时间范围');
                     return;
                 }
 
                 try {
-                    const startDate = this.formatDate(this.categoryQuery.dateRange[0]);
-                    const endDate = this.formatDate(this.categoryQuery.dateRange[1]);
+                    const startDate = this.categoryQuery.dateRange[0];
+                    const endDate = this.categoryQuery.dateRange[1];
 
                     const res = await axios.get('/api/statistics/categoryFlow', {
                         params: { startDate, endDate }
@@ -268,26 +371,55 @@
                 }
                 this.categoryChart = echarts.init(document.getElementById('categoryChart'));
 
-                // 模拟数据
+                if (!this.categoryStats || this.categoryStats.length === 0) {
+                    const option = {
+                        title: {
+                            text: '暂无数据',
+                            left: 'center',
+                            top: 'center'
+                        }
+                    };
+                    this.categoryChart.setOption(option);
+                    return;
+                }
+
+                // 按类别分组统计
+                const categoryMap = {};
+                this.categoryStats.forEach(item => {
+                    if (!categoryMap[item.categoryName]) {
+                        categoryMap[item.categoryName] = {
+                            inQuantity: 0,
+                            outQuantity: 0
+                        };
+                    }
+                    categoryMap[item.categoryName].inQuantity += parseFloat(item.inQuantity) || 0;
+                    categoryMap[item.categoryName].outQuantity += parseFloat(item.outQuantity) || 0;
+                });
+
+                const categories = Object.keys(categoryMap);
+                const inData = categories.map(cat => categoryMap[cat].inQuantity);
+                const outData = categories.map(cat => categoryMap[cat].outQuantity);
+
                 const option = {
                     tooltip: { trigger: 'axis' },
                     legend: { data: ['入库', '出库'] },
                     xAxis: {
                         type: 'category',
-                        data: ['电子元件', '机械零件', '化工原料', '包装材料', '其他']
+                        data: categories,
+                        axisLabel: { rotate: 45 }
                     },
                     yAxis: { type: 'value' },
                     series: [
                         {
                             name: '入库',
                             type: 'bar',
-                            data: [320, 280, 350, 220, 180],
+                            data: inData,
                             itemStyle: { color: '#67c23a' }
                         },
                         {
                             name: '出库',
                             type: 'bar',
-                            data: [280, 250, 300, 200, 150],
+                            data: outData,
                             itemStyle: { color: '#f56c6c' }
                         }
                     ]
@@ -306,9 +438,7 @@
                     });
 
                     if (res.data.code === 200) {
-                        this.$nextTick(() => {
-                            this.renderTrendChart(res.data.data);
-                        });
+                        this.renderTrendChart(res.data.data);
                     }
                 } catch (error) {
                     ElMessage.error('加载趋势数据失败');
@@ -320,10 +450,22 @@
                 }
                 this.trendChart = echarts.init(document.getElementById('trendChart'));
 
-                // 模拟数据
-                const months = this.generateMonths(this.trendQuery.months);
-                const inData = this.generateRandomData(this.trendQuery.months, 50, 200);
-                const outData = this.generateRandomData(this.trendQuery.months, 40, 180);
+                if (!data || data.length === 0) {
+                    const option = {
+                        title: {
+                            text: '暂无数据',
+                            left: 'center',
+                            top: 'center'
+                        }
+                    };
+                    this.trendChart.setOption(option);
+                    return;
+                }
+
+                const months = data.map(item => item.month);
+                const inData = data.map(item => parseFloat(item.in_quantity) || 0);
+                const outData = data.map(item => parseFloat(item.out_quantity) || 0);
+                const stockData = data.map(item => parseFloat(item.end_stock) || 0);
 
                 const option = {
                     tooltip: {
@@ -364,7 +506,7 @@
                             name: '库存',
                             type: 'line',
                             yAxisIndex: 1,
-                            data: this.generateRandomData(this.trendQuery.months, 800, 1200),
+                            data: stockData,
                             itemStyle: { color: '#409eff' },
                             smooth: true
                         }
@@ -372,26 +514,85 @@
                 };
                 this.trendChart.setOption(option);
             },
-            generateMonths(count) {
-                const months = [];
-                for (let i = count - 1; i >= 0; i--) {
-                    const date = new Date();
-                    date.setMonth(date.getMonth() - i);
-                    months.push((date.getMonth() + 1) + '月');
+            async loadOverviewData() {
+                try {
+                    const res = await axios.get('/api/statistics/overview');
+                    if (res.data.code === 200) {
+                        this.overviewData = res.data.data;
+                    }
+                } catch (error) {
+                    console.error('加载概览数据失败:', error);
                 }
-                return months;
             },
-            generateRandomData(count, min, max) {
-                return Array.from({ length: count }, () =>
-                    Math.floor(Math.random() * (max - min + 1)) + min
-                );
+            async loadSupplierStats() {
+                try {
+                    const res = await axios.get('/api/statistics/supplierStats');
+                    if (res.data.code === 200) {
+                        this.supplierStats = res.data.data;
+                        this.$nextTick(() => {
+                            this.renderSupplierChart();
+                        });
+                    }
+                } catch (error) {
+                    console.error('加载供应商统计失败:', error);
+                }
             },
-            formatDate(date) {
-                const d = new Date(date);
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
+            renderSupplierChart() {
+                if (this.supplierChart) {
+                    this.supplierChart.dispose();
+                }
+                this.supplierChart = echarts.init(document.getElementById('supplierChart'));
+
+                if (!this.supplierStats || this.supplierStats.length === 0) {
+                    const option = {
+                        title: {
+                            text: '暂无数据',
+                            left: 'center',
+                            top: 'center'
+                        }
+                    };
+                    this.supplierChart.setOption(option);
+                    return;
+                }
+
+                const suppliers = this.supplierStats.map(s => s.supplier_name);
+                const materialCounts = this.supplierStats.map(s => s.material_count || 0);
+
+                const option = {
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: '{b}: {c}个物料'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: suppliers,
+                        axisLabel: { rotate: 45 }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '物料数量'
+                    },
+                    series: [{
+                        type: 'bar',
+                        data: materialCounts,
+                        itemStyle: {
+                            color: function(params) {
+                                const colorList = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de'];
+                                return colorList[params.dataIndex % colorList.length];
+                            }
+                        }
+                    }]
+                };
+                this.supplierChart.setOption(option);
+            },
+            formatNumber(value) {
+                if (value === null || value === undefined) return '0';
+                const num = parseFloat(value);
+                if (isNaN(num)) return '0';
+                return num.toLocaleString('zh-CN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
             }
         }
     }).use(ElementPlus).mount('#app');

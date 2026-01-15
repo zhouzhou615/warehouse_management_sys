@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>供应商管理</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.9/vue.global.prod.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .toolbar {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-tag {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .status-active { background: #f0f9ff; color: #67c23a; }
+        .status-pause { background: #fdf6ec; color: #e6a23c; }
+        .status-stop { background: #fef0f0; color: #f56c6c; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-card>
+        <div class="toolbar">
+            <div>
+                <el-button type="primary" @click="showAddDialog">
+                    <i class="el-icon-plus"></i> 新增供应商
+                </el-button>
+                <el-button @click="loadSuppliers">
+                    <i class="el-icon-refresh"></i> 刷新
+                </el-button>
+                <el-button @click="showActiveSuppliers">合作中</el-button>
+            </div>
+            <div style="width: 300px;">
+                <el-input
+                        v-model="searchKeyword"
+                        placeholder="搜索供应商编号/名称/联系人"
+                        clearable
+                        @clear="loadSuppliers"
+                        @keyup.enter="searchSuppliers">
+                    <template #append>
+                        <el-button @click="searchSuppliers">
+                            <i class="el-icon-search"></i>
+                        </el-button>
+                    </template>
+                </el-input>
+            </div>
+        </div>
+
+        <!-- 供应商列表 -->
+        <el-table :data="supplierList" stripe border style="width: 100%">
+            <el-table-column prop="supplierId" label="供应商编号" width="120"></el-table-column>
+            <el-table-column prop="supplierName" label="供应商名称" width="150"></el-table-column>
+            <el-table-column prop="contactPerson" label="联系人" width="100"></el-table-column>
+            <el-table-column prop="phone" label="联系电话" width="120"></el-table-column>
+            <el-table-column prop="address" label="地址" width="180"></el-table-column>
+            <el-table-column prop="qualificationLevel" label="资质等级" width="100"></el-table-column>
+            <el-table-column label="合作状态" width="100" align="center">
+                <template #default="scope">
+                    <span :class="'status-tag status-' + scope.row.status">
+                        {{ getStatusText(scope.row.status) }}
+                    </span>
+                </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+                <template #default="scope">
+                    <el-button size="small" @click="showEditDialog(scope.row)">编辑</el-button>
+                    <el-button size="small" type="warning" @click="changeStatus(scope.row)">状态</el-button>
+                    <el-button size="small" type="danger" @click="deleteSupplier(scope.row)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+    </el-card>
+
+    <!-- 新增/编辑供应商对话框 -->
+    <el-dialog v-model="supplierDialog.visible" :title="supplierDialog.title" width="600px">
+        <el-form :model="supplierForm" :rules="supplierRules" ref="supplierFormRef" label-width="120px">
+            <el-form-item label="供应商编号" prop="supplierId">
+                <el-input v-model="supplierForm.supplierId" :disabled="supplierDialog.isEdit"></el-input>
+            </el-form-item>
+            <el-form-item label="供应商名称" prop="supplierName">
+                <el-input v-model="supplierForm.supplierName"></el-input>
+            </el-form-item>
+            <el-form-item label="联系人" prop="contactPerson">
+                <el-input v-model="supplierForm.contactPerson"></el-input>
+            </el-form-item>
+            <el-form-item label="联系电话" prop="phone">
+                <el-input v-model="supplierForm.phone"></el-input>
+            </el-form-item>
+            <el-form-item label="地址">
+                <el-input v-model="supplierForm.address" type="textarea" :rows="2"></el-input>
+            </el-form-item>
+            <el-form-item label="资质等级">
+                <el-input v-model="supplierForm.qualificationLevel"></el-input>
+            </el-form-item>
+            <el-form-item label="合作状态">
+                <el-select v-model="supplierForm.status" style="width: 100%">
+                    <el-option label="合作中" value="合作中"></el-option>
+                    <el-option label="暂停" value="暂停"></el-option>
+                    <el-option label="终止" value="终止"></el-option>
+                </el-select>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="supplierDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="submitSupplier">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 修改状态对话框 -->
+    <el-dialog v-model="statusDialog.visible" title="修改合作状态" width="400px">
+        <el-form label-width="120px">
+            <el-form-item label="供应商名称">
+                <span>{{ statusDialog.supplierName }}</span>
+            </el-form-item>
+            <el-form-item label="当前状态">
+                <span>{{ getStatusText(statusDialog.currentStatus) }}</span>
+            </el-form-item>
+            <el-form-item label="新状态" prop="newStatus">
+                <el-select v-model="statusDialog.newStatus" style="width: 100%">
+                    <el-option label="合作中" value="合作中"></el-option>
+                    <el-option label="暂停" value="暂停"></el-option>
+                    <el-option label="终止" value="终止"></el-option>
+                </el-select>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="statusDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="submitStatusChange">确定</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script>
+    const { createApp } = Vue;
+    const { ElMessage, ElMessageBox } = ElementPlus;
+
+    axios.defaults.baseURL = '/warehouse';
+
+    createApp({
+        data() {
+            return {
+                searchKeyword: '',
+                supplierList: [],
+                supplierDialog: {
+                    visible: false,
+                    title: '新增供应商',
+                    isEdit: false
+                },
+                supplierForm: {
+                    supplierId: '',
+                    supplierName: '',
+                    contactPerson: '',
+                    phone: '',
+                    address: '',
+                    qualificationLevel: '',
+                    status: '合作中'
+                },
+                supplierRules: {
+                    supplierId: [{ required: true, message: '请输入供应商编号', trigger: 'blur' }],
+                    supplierName: [{ required: true, message: '请输入供应商名称', trigger: 'blur' }],
+                    contactPerson: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
+                    phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }]
+                },
+                statusDialog: {
+                    visible: false,
+                    supplierId: '',
+                    supplierName: '',
+                    currentStatus: '',
+                    newStatus: ''
+                }
+            }
+        },
+        mounted() {
+            this.loadSuppliers();
+        },
+        methods: {
+            async loadSuppliers() {
+                try {
+                    const res = await axios.get('/api/supplier/list');
+                    if (res.data.code === 200) {
+                        this.supplierList = res.data.data;
+                    }
+                } catch (error) {
+                    ElMessage.error('加载供应商列表失败');
+                }
+            },
+            async searchSuppliers() {
+                try {
+                    const res = await axios.get('/api/supplier/search', {
+                        params: { keyword: this.searchKeyword }
+                    });
+                    if (res.data.code === 200) {
+                        this.supplierList = res.data.data;
+                    }
+                } catch (error) {
+                    ElMessage.error('搜索失败');
+                }
+            },
+            async showActiveSuppliers() {
+                try {
+                    const res = await axios.get('/api/supplier/active');
+                    if (res.data.code === 200) {
+                        this.supplierList = res.data.data;
+                        ElMessage.success(`合作中供应商：${res.data.data.length}个`);
+                    }
+                } catch (error) {
+                    ElMessage.error('查询失败');
+                }
+            },
+            showAddDialog() {
+                this.supplierDialog.visible = true;
+                this.supplierDialog.title = '新增供应商';
+                this.supplierDialog.isEdit = false;
+                this.resetForm();
+            },
+            showEditDialog(row) {
+                this.supplierDialog.visible = true;
+                this.supplierDialog.title = '编辑供应商';
+                this.supplierDialog.isEdit = true;
+                this.supplierForm = { ...row };
+            },
+            async submitSupplier() {
+                try {
+                    await this.$refs.supplierFormRef.validate();
+
+                    const url = this.supplierDialog.isEdit ? '/api/supplier/update' : '/api/supplier/add';
+                    const method = this.supplierDialog.isEdit ? 'put' : 'post';
+
+                    const res = await axios[method](url, this.supplierForm);
+                    if (res.data.code === 200) {
+                        ElMessage.success(res.data.message);
+                        this.supplierDialog.visible = false;
+                        this.loadSuppliers();
+                    } else {
+                        ElMessage.error(res.data.message);
+                    }
+                } catch (error) {
+                    if (error.response) {
+                        ElMessage.error(error.response.data.message || '操作失败');
+                    }
+                }
+            },
+            changeStatus(row) {
+                this.statusDialog.visible = true;
+                this.statusDialog.supplierId = row.supplierId;
+                this.statusDialog.supplierName = row.supplierName;
+                this.statusDialog.currentStatus = row.status;
+                this.statusDialog.newStatus = row.status;
+            },
+            async submitStatusChange() {
+                try {
+                    const res = await axios.put('/api/supplier/updateStatus', null, {
+                        params: {
+                            supplierId: this.statusDialog.supplierId,
+                            status: this.statusDialog.newStatus
+                        }
+                    });
+                    if (res.data.code === 200) {
+                        ElMessage.success('状态更新成功');
+                        this.statusDialog.visible = false;
+                        this.loadSuppliers();
+                    }
+                } catch (error) {
+                    ElMessage.error(error.response?.data?.message || '更新失败');
+                }
+            },
+            deleteSupplier(row) {
+                ElMessageBox.confirm(`确定要删除供应商 "${row.supplierName}" 吗?`, '警告', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(async () => {
+                    try {
+                        const res = await axios.delete(`/api/supplier/delete/${row.supplierId}`);
+                        if (res.data.code === 200) {
+                            ElMessage.success('删除成功');
+                            this.loadSuppliers();
+                        }
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.message || '删除失败');
+                    }
+                }).catch(() => {});
+            },
+            resetForm() {
+                this.supplierForm = {
+                    supplierId: '',
+                    supplierName: '',
+                    contactPerson: '',
+                    phone: '',
+                    address: '',
+                    qualificationLevel: '',
+                    status: '合作中'
+                };
+            },
+            getStatusText(status) {
+                const map = {
+                    '合作中': '合作中',
+                    '暂停': '暂停',
+                    '终止': '终止'
+                };
+                return map[status] || status;
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>

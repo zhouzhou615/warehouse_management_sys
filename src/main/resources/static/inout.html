@@ -148,7 +148,9 @@
                                 type="datetimerange"
                                 range-separator="至"
                                 start-placeholder="开始时间"
-                                end-placeholder="结束时间">
+                                end-placeholder="结束时间"
+                                format="YYYY-MM-DD HH:mm:ss"
+                                value-format="YYYY-MM-DD HH:mm:ss">
                         </el-date-picker>
                     </el-form-item>
 
@@ -206,7 +208,10 @@
                 inoutRules: {
                     materialId: [{ required: true, message: '请选择物料', trigger: 'change' }],
                     inoutType: [{ required: true, message: '请选择操作类型', trigger: 'change' }],
-                    quantity: [{ required: true, message: '请输入数量', trigger: 'blur' }],
+                    quantity: [
+                        { required: true, message: '请输入数量', trigger: 'blur' },
+                        { type: 'number', min: 0.01, message: '数量必须大于0', trigger: 'blur' }
+                    ],
                     operatorId: [{ required: true, message: '请输入操作员', trigger: 'blur' }]
                 },
                 recentRecords: [],
@@ -255,7 +260,17 @@
                     await this.$refs.inoutFormRef.validate();
 
                     this.submitting = true;
-                    const res = await axios.post('/api/inout/operate', this.inoutForm);
+
+                    // 构建符合InoutDTO格式的数据
+                    const dto = {
+                        materialId: this.inoutForm.materialId,
+                        inoutType: this.inoutForm.inoutType,
+                        quantity: parseFloat(this.inoutForm.quantity),
+                        operatorId: this.inoutForm.operatorId,
+                        remark: this.inoutForm.remark
+                    };
+
+                    const res = await axios.post('/api/inout/operate', dto);
 
                     if (res.data.code === 200) {
                         ElMessage.success({
@@ -267,7 +282,11 @@
                         this.loadMaterials();
                     }
                 } catch (error) {
-                    ElMessage.error(error.response?.data?.message || '操作失败');
+                    if (error.response && error.response.data) {
+                        ElMessage.error(error.response.data.message || '操作失败');
+                    } else {
+                        ElMessage.error('操作失败');
+                    }
                 } finally {
                     this.submitting = false;
                 }
@@ -279,19 +298,23 @@
                 }
 
                 try {
-                    const params = {
+                    const dto = {
                         materialId: this.traceForm.materialId,
                         startDate: this.traceForm.dateRange ? this.traceForm.dateRange[0] : null,
                         endDate: this.traceForm.dateRange ? this.traceForm.dateRange[1] : null
                     };
 
-                    const res = await axios.post('/api/inout/trace', params);
+                    const res = await axios.post('/api/inout/trace', dto);
                     if (res.data.code === 200) {
                         this.traceRecords = res.data.data;
                         ElMessage.success(`查询到${res.data.data.length}条记录`);
                     }
                 } catch (error) {
-                    ElMessage.error('查询失败');
+                    if (error.response && error.response.data) {
+                        ElMessage.error(error.response.data.message || '查询失败');
+                    } else {
+                        ElMessage.error('查询失败');
+                    }
                 }
             },
             resetInoutForm() {

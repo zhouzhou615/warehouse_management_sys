@@ -1,10 +1,11 @@
 package org.example.warehouse_management_sys.Mapper;
 
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.example.warehouse_management_sys.Entity.StockAlert;
 
 import java.util.List;
-
+@Mapper
 public interface StockAlertMapper {
 
     // 插入预警记录

@@ -1,11 +1,12 @@
 package org.example.warehouse_management_sys.Mapper;
 
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.example.warehouse_management_sys.DTO.StatisticsDTO;
 
 import java.util.List;
 import java.util.Map;
-
+@Mapper
 public interface StatisticsMapper {
 
     // 月度出入库统计
