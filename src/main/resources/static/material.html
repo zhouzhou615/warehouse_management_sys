@@ -91,7 +91,14 @@
                 <template #default="scope">
                     <el-button size="small" @click="showEditDialog(scope.row)">编辑</el-button>
                     <el-button size="small" type="warning" @click="showSafeStockDialog(scope.row)">调整库存</el-button>
-                    <el-button size="small" type="danger" @click="deleteMaterial(scope.row)">删除</el-button>
+                    <el-button
+                            size="small"
+                            type="danger"
+                            @click="deleteMaterial(scope.row)"
+                            :disabled="scope.row.currentStock > 0"
+                            :title="scope.row.currentStock > 0 ? '库存不为0，无法删除' : ''">
+                        删除
+                    </el-button>
                 </template>
             </el-table-column>
         </el-table>
@@ -332,6 +339,17 @@
                 }
             },
             deleteMaterial(row) {
+                // 如果库存大于0，直接提示无法删除
+                if (parseFloat(row.currentStock) > 0) {
+                    ElMessage.warning({
+                        message: '库存不为0',
+                        description: `物料 "${row.materialName}" 当前库存为 ${row.currentStock}，请先将库存调整为0后再删除。`,
+                        duration: 3000
+                    });
+                    return;
+                }
+
+                // 库存为0，继续删除确认
                 ElMessageBox.confirm(`确定要删除物料 "${row.materialName}" 吗?`, '警告', {
                     confirmButtonText: '确定',
                     cancelButtonText: '取消',

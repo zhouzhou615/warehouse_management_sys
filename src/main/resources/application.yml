@@ -35,6 +35,21 @@ spring:
     resources:
       static-locations: classpath:/static/
 
+  db4ai:
+    enabled: true
+    # 模型训练参数
+    training:
+      max-models: 50
+      retrain-days: 7
+    # 预测参数
+    prediction:
+      days-ahead: 14
+      confidence-level: 0.95
+    # 异常检测参数
+    anomaly:
+      threshold: 2.5
+      lookback-days: 90
+
 
 server:
   port: 8080
@@ -57,3 +72,4 @@ logging:
     org.springframework: debug
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n'
+
