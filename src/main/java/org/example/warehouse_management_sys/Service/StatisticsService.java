@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,46 +46,99 @@ public class StatisticsService {
     public Map<String, Object> getStockOverview() {
         return statisticsMapper.stockOverview();
     }
+    public void debugTodayInOut() {
+        try {
+            log.info("=== 开始调试今日出入库数据 ===");
+
+            // 1. 获取当前日期和时间
+            LocalDateTime now = LocalDateTime.now();
+            LocalDate today = LocalDate.now();
+            log.info("当前系统时间: {}", now);
+            log.info("当前系统日期: {}", today);
+
+            // 2. 直接查询今日出入库记录
+            String testSql = "SELECT COUNT(*) as count, SUM(quantity) as total " +
+                    "FROM inout_record " +
+                    "WHERE operation_time >= CURRENT_DATE";
+            log.info("执行的SQL: {}", testSql);
+
+            // 3. 通过 mapper 查询今日数据
+            Map<String, Object> todayStats = statisticsMapper.getTodayInOutStatistics();
+            log.info("今日出入库统计结果: {}", todayStats);
+
+            // 4. 查询库存总览
+            Map<String, Object> overview = statisticsMapper.stockOverview();
+            log.info("库存总览结果: {}", overview);
+
+            // 5. 直接查询inout_record表统计
+            String directCountSql = "SELECT COUNT(*) FROM inout_record WHERE operation_time >= CURRENT_DATE";
+            log.info("直接查询今日记录数SQL: {}", directCountSql);
+
+            log.info("=== 调试结束 ===");
+
+        } catch (Exception e) {
+            log.error("调试过程中发生错误", e);
+        }
+    }
+
     public Map<String, Object> getOverview() {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 获取所有物料 - 使用注入的mapper实例
-            List<Material> materials = materialMapper.selectAllWithStatus();
+            log.info("开始获取概览数据...");
 
-            // 计算物料总数
-            int totalMaterials = materials != null ? materials.size() : 0;
-            result.put("total_materials", totalMaterials);
+            // 先调试今日数据
+            this.debugTodayInOut();
 
-            // 计算库存总值
-            BigDecimal totalValue = BigDecimal.ZERO;
-            if (materials != null) {
-                for (Material material : materials) {
-                    if (material.getCurrentStock() != null && material.getUnitPrice() != null) {
-                        try {
-                            BigDecimal value = material.getCurrentStock().multiply(material.getUnitPrice());
-                            totalValue = totalValue.add(value);
-                        } catch (Exception e) {
-                            log.warn("计算物料价值出错: materialId={}, currentStock={}, unitPrice={}",
-                                    material.getMaterialId(), material.getCurrentStock(), material.getUnitPrice());
+            // 从数据库获取概览数据
+            Map<String, Object> overview = statisticsMapper.stockOverview();
+            log.info("stockOverview查询结果: {}", overview);
+
+            if (overview != null) {
+                result.putAll(overview);
+
+                // 如果today_inout为0，尝试其他方法获取
+                Object todayInOut = overview.get("today_inout");
+                if (todayInOut == null ||
+                        (todayInOut instanceof Number && ((Number) todayInOut).doubleValue() == 0)) {
+
+                    log.warn("stockOverview返回的today_inout为0或null，尝试通过getTodayInOutStatistics获取");
+
+                    Map<String, Object> todayStats = statisticsMapper.getTodayInOutStatistics();
+                    log.info("getTodayInOutStatistics查询结果: {}", todayStats);
+
+                    if (todayStats != null) {
+                        Object todayIn = todayStats.get("today_in");
+                        Object todayOut = todayStats.get("today_out");
+
+                        BigDecimal total = BigDecimal.ZERO;
+                        if (todayIn != null) {
+                            total = total.add(new BigDecimal(todayIn.toString()));
                         }
+                        if (todayOut != null) {
+                            total = total.add(new BigDecimal(todayOut.toString()));
+                        }
+
+                        result.put("today_inout", total);
+                        log.info("通过getTodayInOutStatistics计算的今日出入库总量: {}", total);
+                    } else {
+                        result.put("today_inout", 0);
                     }
+                } else {
+                    log.info("使用stockOverview的today_inout值: {}", todayInOut);
                 }
+            } else {
+                log.warn("stockOverview返回null");
             }
-            result.put("total_value", totalValue.setScale(2, RoundingMode.HALF_UP));
 
-            // 获取低库存物料数量
-            List<Material> lowStockMaterials = materialMapper.selectLowStock();
-            result.put("low_stock_count", lowStockMaterials != null ? lowStockMaterials.size() : 0);
+            // 确保所有必要字段都存在
+            result.putIfAbsent("total_materials", 0);
+            result.putIfAbsent("total_value", BigDecimal.ZERO);
+            result.putIfAbsent("low_stock_count", 0);
+            result.putIfAbsent("high_stock_count", 0);
+            result.putIfAbsent("today_inout", 0);
 
-            // 获取高库存物料数量
-            List<Material> highStockMaterials = materialMapper.selectHighStock();
-            result.put("high_stock_count", highStockMaterials != null ? highStockMaterials.size() : 0);
-
-            // 今日出入库数量（暂时返回0，需要出入库记录表）
-            result.put("today_inout", 0);
-
-            log.info("获取概览数据: 物料总数={}, 库存总值={}", totalMaterials, totalValue);
+            log.info("最终返回的概览数据: {}", result);
 
         } catch (Exception e) {
             log.error("获取概览数据失败", e);

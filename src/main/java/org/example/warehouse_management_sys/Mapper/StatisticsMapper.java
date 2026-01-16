@@ -21,6 +21,8 @@ public interface StatisticsMapper {
     List<Map<String, Object>> materialTrend(@Param("materialId") String materialId,
                                             @Param("months") Integer months);
 
+    // 今日出入库统计（新增）
+    Map<String, Object> getTodayInOutStatistics();
 
 
     // 库存总览
@@ -31,4 +33,6 @@ public interface StatisticsMapper {
 
     // 供应商物料统计
     List<Map<String, Object>> supplierMaterialStatistics();
+    // 调试查询
+    List<Map<String, Object>> debugTodayInOut();
 }

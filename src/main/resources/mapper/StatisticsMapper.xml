@@ -4,6 +4,7 @@
 <mapper namespace="org.example.warehouse_management_sys.Mapper.StatisticsMapper">
 
     <!-- 月度出入库统计 -->
+    <!-- 月度出入库统计 -->
     <select id="monthlyStatistics" resultType="org.example.warehouse_management_sys.DTO.StatisticsDTO">
         SELECT
             ir.material_id AS materialId,
