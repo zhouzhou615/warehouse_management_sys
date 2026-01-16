@@ -74,4 +74,17 @@
         GROUP BY ir.material_id, m.material_name
         ORDER BY (in_quantity + out_quantity) DESC
     </select>
+
+    <!-- 调用出入库存储过程 -->
+    <select id="callMaterialInoutProcedure" statementType="CALLABLE">
+        {call SP_MATERIAL_INOUT_BASIC(
+                #{p_material_id, mode=IN, jdbcType=VARCHAR},
+                #{p_inout_type, mode=IN, jdbcType=VARCHAR},
+                #{p_quantity, mode=IN, jdbcType=DECIMAL},
+                #{p_operator_id, mode=IN, jdbcType=VARCHAR},
+                #{p_remark, mode=IN, jdbcType=VARCHAR},
+                #{p_result, mode=OUT, jdbcType=VARCHAR},
+                #{p_record_id, mode=OUT, jdbcType=VARCHAR}
+              )}
+    </select>
 </mapper>

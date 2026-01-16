@@ -19,13 +19,17 @@ public class StatisticsController {
     @Resource
     private StatisticsService statisticsService;
 
-    @PostMapping("/monthly")
-    public Result<List<StatisticsDTO>> getMonthlyStatistics(@Valid @RequestBody MonthlyQueryDTO dto) {
-        List<StatisticsDTO> stats = statisticsService.getMonthlyStatistics(
-                dto.getYear(),
-                dto.getMonth()
-        );
+    @GetMapping("/monthly")
+    public Result<List<StatisticsDTO>> getMonthlyStatistics(
+            @RequestParam Integer year,
+            @RequestParam Integer month) {
+        List<StatisticsDTO> stats = statisticsService.getMonthlyStatistics(year, month);
         return Result.success(stats);
+    }
+    @GetMapping("/overview")
+    public Result<Map<String, Object>> getOverview() {
+        Map<String, Object> data = statisticsService.getOverview();
+        return Result.success(data);
     }
 
     @GetMapping("/categoryFlow")
@@ -50,11 +54,11 @@ public class StatisticsController {
         return Result.success(trend);
     }
 
-    @GetMapping("/overview")
-    public Result<Map<String, Object>> getStockOverview() {
-        Map<String, Object> overview = statisticsService.getStockOverview();
-        return Result.success(overview);
-    }
+//    @GetMapping("/overview")
+//    public Result<Map<String, Object>> getStockOverview() {
+//        Map<String, Object> overview = statisticsService.getStockOverview();
+//        return Result.success(overview);
+//    }
 
     @GetMapping("/alertStats")
     public Result<Map<String, Object>> getAlertStatistics() {

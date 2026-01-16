@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.example.warehouse_management_sys.Mapper.SupplierMapper">
 
     <!-- 供应商结果映射 -->
@@ -22,9 +22,9 @@
             supplier_id, supplier_name, contact_person, phone,
             address, qualification_level, status
         ) VALUES (
-            #{supplierId}, #{supplierName}, #{contactPerson}, #{phone},
-            #{address}, #{qualificationLevel}, COALESCE(#{status}, '合作中')
-        )
+                     #{supplierId}, #{supplierName}, #{contactPerson}, #{phone},
+                     #{address}, #{qualificationLevel}, COALESCE(#{status}, '合作中')
+                 )
     </insert>
 
     <!-- 更新供应商 -->

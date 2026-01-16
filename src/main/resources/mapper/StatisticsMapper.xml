@@ -3,23 +3,24 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.example.warehouse_management_sys.Mapper.StatisticsMapper">
 
-    <!-- 月度出入库统计（包含供应商信息） -->
+    <!-- 月度出入库统计 -->
     <select id="monthlyStatistics" resultType="org.example.warehouse_management_sys.DTO.StatisticsDTO">
         SELECT
             ir.material_id AS materialId,
             m.material_name AS materialName,
             s.supplier_name AS supplierName,
             TO_CHAR(ir.operation_time, 'YYYY-MM') AS yearMonth,
-            SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE 0 END) AS inQuantity,
-            SUM(CASE WHEN ir.inout_type = '出库' THEN ir.quantity ELSE 0 END) AS outQuantity,
-            SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE -ir.quantity END) AS netChange,
-            COUNT(*) AS recordCount,
-            ROUND(AVG(ir.quantity), 2) AS avgQuantity
-        FROM INOUT_RECORD ir
-                 LEFT JOIN MATERIAL m ON ir.material_id = m.material_id
-                 LEFT JOIN SUPPLIER s ON m.supplier_id = s.supplier_id
-        WHERE TO_CHAR(ir.operation_time, 'YYYY') = #{year}::TEXT
-          AND TO_CHAR(ir.operation_time, 'MM') = LPAD(#{month}::TEXT, 2, '0')
+            COALESCE(SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE 0 END), 0) AS inQuantity,
+            COALESCE(SUM(CASE WHEN ir.inout_type = '出库' THEN ir.quantity ELSE 0 END), 0) AS outQuantity,
+            COALESCE(SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE -ir.quantity END), 0) AS netChange,
+            COALESCE(COUNT(*), 0) AS recordCount,
+            COALESCE(ROUND(AVG(ir.quantity), 2), 0) AS avgQuantity
+        FROM inout_record ir
+                 LEFT JOIN material m ON ir.material_id = m.material_id
+                 LEFT JOIN supplier s ON m.supplier_id = s.supplier_id
+        WHERE EXTRACT(YEAR FROM ir.operation_time) = #{year}
+          AND EXTRACT(MONTH FROM ir.operation_time) = #{month}
+          AND m.status = '正常'
         GROUP BY ir.material_id, m.material_name, s.supplier_name, TO_CHAR(ir.operation_time, 'YYYY-MM')
         ORDER BY netChange DESC
     </select>
@@ -29,13 +30,16 @@
         SELECT
             mc.category_name AS categoryName,
             TO_CHAR(ir.operation_time, 'YYYY-MM') AS yearMonth,
-            SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE 0 END) AS inQuantity,
-            SUM(CASE WHEN ir.inout_type = '出库' THEN ir.quantity ELSE 0 END) AS outQuantity,
-            COUNT(*) AS recordCount
-        FROM INOUT_RECORD ir
-                 JOIN MATERIAL m ON ir.material_id = m.material_id
-                 JOIN MATERIAL_CATEGORY mc ON m.category_id = mc.category_id
-        WHERE ir.operation_time BETWEEN #{startDate}::timestamp AND #{endDate}::timestamp
+            COALESCE(SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE 0 END), 0) AS inQuantity,
+            COALESCE(SUM(CASE WHEN ir.inout_type = '出库' THEN ir.quantity ELSE 0 END), 0) AS outQuantity,
+            COALESCE(COUNT(*), 0) AS recordCount
+        FROM inout_record ir
+                 JOIN material m ON ir.material_id = m.material_id
+                 JOIN material_category mc ON m.category_id = mc.category_id
+        WHERE DATE_TRUNC('day', ir.operation_time) BETWEEN
+            DATE_TRUNC('day', TO_TIMESTAMP(#{startDate}, 'YYYY-MM-DD')) AND
+            DATE_TRUNC('day', TO_TIMESTAMP(#{endDate}, 'YYYY-MM-DD'))
+          AND m.status = '正常'
         GROUP BY mc.category_name, TO_CHAR(ir.operation_time, 'YYYY-MM')
         ORDER BY yearMonth, categoryName
     </select>
@@ -44,12 +48,12 @@
     <select id="materialTrend" resultType="map">
         SELECT
             TO_CHAR(ir.operation_time, 'YYYY-MM') AS month,
-            SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE 0 END) AS in_quantity,
-            SUM(CASE WHEN ir.inout_type = '出库' THEN ir.quantity ELSE 0 END) AS out_quantity,
-            MAX(ir.after_stock) AS end_stock
-        FROM INOUT_RECORD ir
+            COALESCE(SUM(CASE WHEN ir.inout_type = '入库' THEN ir.quantity ELSE 0 END), 0) AS in_quantity,
+            COALESCE(SUM(CASE WHEN ir.inout_type = '出库' THEN ir.quantity ELSE 0 END), 0) AS out_quantity,
+            COALESCE(MAX(ir.after_stock), 0) AS end_stock
+        FROM inout_record ir
         WHERE ir.material_id = #{materialId}
-          AND ir.operation_time >= CURRENT_DATE - INTERVAL '${months} months'
+          AND DATE_TRUNC('day', ir.operation_time) >= DATE_TRUNC('day', CURRENT_TIMESTAMP - INTERVAL '${months} months')
         GROUP BY TO_CHAR(ir.operation_time, 'YYYY-MM')
         ORDER BY month
     </select>
@@ -57,26 +61,29 @@
     <!-- 库存总览 -->
     <select id="stockOverview" resultType="map">
         SELECT
-            COUNT(*) AS total_materials,
-            SUM(current_stock * COALESCE(unit_price, 0)) AS total_value,
-            SUM(CASE WHEN current_stock &lt; safe_stock_min THEN 1 ELSE 0 END) AS low_stock_count,
-            SUM(CASE WHEN current_stock &gt; safe_stock_max THEN 1 ELSE 0 END) AS high_stock_count,
-            (SELECT COUNT(*)
-             FROM INOUT_RECORD
-             WHERE DATE(operation_time) = CURRENT_DATE) AS today_inout
-        FROM MATERIAL
-        WHERE status = '正常'
+            COALESCE(COUNT(*), 0) AS total_materials,
+            COALESCE(SUM(m.current_stock * m.unit_price), 0) AS total_value,
+            COALESCE(SUM(CASE WHEN m.current_stock &lt; m.safe_stock_min THEN 1 ELSE 0 END), 0) AS low_stock_count,
+            COALESCE(SUM(CASE WHEN m.current_stock &gt; m.safe_stock_max THEN 1 ELSE 0 END), 0) AS high_stock_count,
+            COALESCE((
+                         SELECT COALESCE(SUM(quantity), 0)
+                         FROM inout_record ir
+                         WHERE DATE_TRUNC('day', ir.operation_time) = DATE_TRUNC('day', CURRENT_TIMESTAMP)
+                     ), 0) AS today_inout
+        FROM material m
+        WHERE m.status = '正常'
     </select>
 
     <!-- 预警统计 -->
     <select id="alertStatistics" resultType="map">
         SELECT
-            COUNT(*) AS total_alerts,
-            SUM(CASE WHEN status = '未处理' THEN 1 ELSE 0 END) AS unhandled_count,
-            SUM(CASE WHEN alert_type = '低库存' THEN 1 ELSE 0 END) AS low_stock_count,
-            SUM(CASE WHEN alert_type = '高库存' THEN 1 ELSE 0 END) AS high_stock_count,
-            SUM(CASE WHEN alert_type = '预测缺货' THEN 1 ELSE 0 END) AS prediction_count
-        FROM STOCK_ALERT
+            COALESCE(COUNT(*), 0) AS total_alerts,
+            COALESCE(SUM(CASE WHEN status = '未处理' THEN 1 ELSE 0 END), 0) AS unhandled_count,
+            COALESCE(SUM(CASE WHEN alert_type = '低库存' THEN 1 ELSE 0 END), 0) AS low_stock_count,
+            COALESCE(SUM(CASE WHEN alert_type = '高库存' THEN 1 ELSE 0 END), 0) AS high_stock_count,
+            COALESCE(SUM(CASE WHEN alert_type = '预测缺货' THEN 1 ELSE 0 END), 0) AS prediction_count
+        FROM stock_alert
+        WHERE DATE_TRUNC('day', create_time) >= DATE_TRUNC('day', CURRENT_TIMESTAMP - INTERVAL '7 days')
     </select>
 
     <!-- 供应商物料统计 -->
@@ -84,13 +91,23 @@
         SELECT
             s.supplier_id,
             s.supplier_name,
-            COUNT(m.material_id) AS material_count,
-            SUM(m.current_stock * COALESCE(m.unit_price, 0)) AS total_value,
-            SUM(CASE WHEN m.current_stock &lt; m.safe_stock_min THEN 1 ELSE 0 END) AS low_stock_count
-        FROM SUPPLIER s
-                 LEFT JOIN MATERIAL m ON s.supplier_id = m.supplier_id AND m.status = '正常'
+            COALESCE(COUNT(m.material_id), 0) AS material_count,
+            COALESCE(SUM(m.current_stock * m.unit_price), 0) AS total_value,
+            COALESCE(SUM(CASE WHEN m.current_stock &lt; m.safe_stock_min THEN 1 ELSE 0 END), 0) AS low_stock_count
+        FROM supplier s
+                 LEFT JOIN material m ON s.supplier_id = m.supplier_id AND m.status = '正常'
         WHERE s.status = '合作中'
         GROUP BY s.supplier_id, s.supplier_name
         ORDER BY material_count DESC
+    </select>
+
+    <!-- 今日出入库统计 -->
+    <select id="getTodayInOutStatistics" resultType="map">
+        SELECT
+            COALESCE(SUM(CASE WHEN inout_type = '入库' THEN quantity ELSE 0 END), 0) AS today_in,
+            COALESCE(SUM(CASE WHEN inout_type = '出库' THEN quantity ELSE 0 END), 0) AS today_out,
+            COALESCE(COUNT(*), 0) AS today_count
+        FROM inout_record
+        WHERE DATE_TRUNC('day', operation_time) = DATE_TRUNC('day', CURRENT_TIMESTAMP)
     </select>
 </mapper>

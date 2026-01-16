@@ -12,7 +12,9 @@ import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 @Slf4j
@@ -38,55 +40,48 @@ public class InoutService {
      */
     @Transactional(rollbackFor = Exception.class)
     public String materialInout(InoutDTO dto) {
-        // 生成单据号
-        String recordId = dto.getInoutType() +
-                LocalDateTime.now().format(FORMATTER) +
-                String.format("%03d", new Random().nextInt(1000));
-
         // 查询物料当前库存
         Material material = materialMapper.selectById(dto.getMaterialId());
         if (material == null) {
             throw new IllegalArgumentException("物料不存在");
         }
 
-        BigDecimal beforeStock = material.getCurrentStock();
-        BigDecimal afterStock;
-
-        // 验证并计算库存
-        if ("出库".equals(dto.getInoutType())) {
-            if (beforeStock.compareTo(dto.getQuantity()) < 0) {
-                throw new IllegalArgumentException(
-                        String.format("库存不足! 当前库存: %s, 出库数量: %s",
-                                beforeStock, dto.getQuantity()));
-            }
-            afterStock = beforeStock.subtract(dto.getQuantity());
-        } else {
-            afterStock = beforeStock.add(dto.getQuantity());
+        // 验证库存（出库时需要）
+        if ("出库".equals(dto.getInoutType()) &&
+                material.getCurrentStock().compareTo(dto.getQuantity()) < 0) {
+            throw new IllegalArgumentException(
+                    String.format("库存不足! 当前库存: %s, 出库数量: %s",
+                            material.getCurrentStock(), dto.getQuantity()));
         }
 
-        // 构建记录
-        InoutRecord record = new InoutRecord();
-        record.setRecordId(recordId);
-        record.setMaterialId(dto.getMaterialId());
-        record.setInoutType(dto.getInoutType());
-        record.setQuantity(dto.getQuantity());
-        record.setOperatorId(dto.getOperatorId());
-        record.setRemark(dto.getRemark());
-        record.setBeforeStock(beforeStock);
-        record.setAfterStock(afterStock);
+        // 生成单据号（与存储过程生成方式一致）
+        String recordId = dto.getInoutType() + "_" +
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
 
-        // 插入记录（触发器会自动更新库存）
-        int result = inoutRecordMapper.insert(record);
+        // 调用存储过程
+        Map<String, Object> params = new HashMap<>();
+        params.put("p_material_id", dto.getMaterialId());
+        params.put("p_inout_type", dto.getInoutType());
+        params.put("p_quantity", dto.getQuantity());
+        params.put("p_operator_id", dto.getOperatorId());
+        params.put("p_remark", dto.getRemark());
+        params.put("p_result", null);  // 输出参数
+        params.put("p_record_id", null); // 输出参数
 
-        log.info("出入库操作: 单据号={}, 物料={}, 类型={}, 数量={}, 操作前库存={}, 操作后库存={}",
-                recordId, dto.getMaterialId(), dto.getInoutType(),
-                dto.getQuantity(), beforeStock, afterStock);
+        // 使用 MyBatis 调用存储过程
+        inoutRecordMapper.callMaterialInoutProcedure(params);
 
-        if (result == 0) {
+        String result = (String) params.get("p_result");
+        String generatedRecordId = (String) params.get("p_record_id");
+
+        if (!"成功".equals(result)) {
             throw new RuntimeException("出入库操作失败");
         }
 
-        return recordId;
+        log.info("出入库操作成功: 单据号={}, 物料={}, 类型={}, 数量={}",
+                generatedRecordId, dto.getMaterialId(), dto.getInoutType(), dto.getQuantity());
+
+        return generatedRecordId;
     }
 
     /**

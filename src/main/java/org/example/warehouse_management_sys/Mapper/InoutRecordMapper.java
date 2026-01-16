@@ -27,4 +27,6 @@ public interface InoutRecordMapper {
     // 按物料统计出入库
     List<Map<String, Object>> statisticsByMaterial(@Param("startDate") LocalDateTime startDate,
                                                    @Param("endDate") LocalDateTime endDate);
+    // 调用物料出入库存储过程
+    void callMaterialInoutProcedure(Map<String, Object> params);
 }

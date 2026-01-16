@@ -35,7 +35,7 @@
 <body>
 <div id="app">
     <el-card>
-        <el-tabs v-model="activeTab">
+        <el-tabs v-model="activeTab" @tab-change="handleTabChange">
             <!-- 月度统计 -->
             <el-tab-pane label="月度统计" name="monthly">
                 <el-form inline>
@@ -50,11 +50,22 @@
                         </el-select>
                     </el-form-item>
                     <el-form-item>
-                        <el-button type="primary" @click="loadMonthlyStats">查询</el-button>
+                        <el-button type="primary" @click="loadMonthlyStats" :loading="loading.monthly">查询</el-button>
                     </el-form-item>
                 </el-form>
 
-                <el-table :data="monthlyStats" stripe border>
+                <el-alert
+                        v-if="monthlyStats.length === 0 && !loading.monthly"
+                        title="提示"
+                        type="info"
+                        :closable="false"
+                        style="margin-bottom: 20px;">
+                    <template #default>
+                        当前月份暂无出入库数据。请先进行出入库操作或选择其他月份查询。
+                    </template>
+                </el-alert>
+
+                <el-table :data="monthlyStats" stripe border v-loading="loading.monthly">
                     <el-table-column type="index" label="序号" width="60"></el-table-column>
                     <el-table-column prop="materialId" label="物料编号" width="120"></el-table-column>
                     <el-table-column prop="materialName" label="物料名称" width="150"></el-table-column>
@@ -71,9 +82,9 @@
                     </el-table-column>
                     <el-table-column prop="netChange" label="净变化" width="120" align="right">
                         <template #default="scope">
-                                <span :style="{color: (scope.row.netChange || 0) >= 0 ? '#67c23a' : '#f56c6c'}">
-                                    {{ (scope.row.netChange || 0) >= 0 ? '+' : '' }}{{ formatNumber(scope.row.netChange) }}
-                                </span>
+                            <span :style="{color: (scope.row.netChange || 0) >= 0 ? '#67c23a' : '#f56c6c'}">
+                                {{ (scope.row.netChange || 0) >= 0 ? '+' : '' }}{{ formatNumber(scope.row.netChange) }}
+                            </span>
                         </template>
                     </el-table-column>
                     <el-table-column prop="recordCount" label="操作次数" width="100" align="right"></el-table-column>
@@ -105,16 +116,40 @@
                         </el-date-picker>
                     </el-form-item>
                     <el-form-item>
-                        <el-button type="primary" @click="loadCategoryStats">查询</el-button>
+                        <el-button type="primary" @click="loadCategoryStats" :loading="loading.category">查询</el-button>
                     </el-form-item>
                 </el-form>
 
-                <div class="chart-card">
+                <el-alert
+                        v-if="!categoryQuery.dateRange"
+                        title="请选择时间范围"
+                        type="warning"
+                        :closable="false"
+                        style="margin-bottom: 20px;">
+                    请先选择开始日期和结束日期，然后点击查询按钮
+                </el-alert>
+
+                <el-alert
+                        v-if="categoryQuery.dateRange && categoryStats.length === 0 && !loading.category"
+                        title="提示"
+                        type="info"
+                        :closable="false"
+                        style="margin-bottom: 20px;">
+                    所选时间范围内暂无数据
+                </el-alert>
+
+                <div class="chart-card" v-if="categoryQuery.dateRange">
                     <h3>各类别出入库流量</h3>
                     <div id="categoryChart" style="height: 400px;"></div>
                 </div>
 
-                <el-table :data="categoryStats" stripe border style="margin-top: 20px;">
+                <el-table
+                        v-if="categoryQuery.dateRange"
+                        :data="categoryStats"
+                        stripe
+                        border
+                        style="margin-top: 20px;"
+                        v-loading="loading.category">
                     <el-table-column prop="categoryName" label="物料类别" width="150"></el-table-column>
                     <el-table-column prop="yearMonth" label="月份" width="100"></el-table-column>
                     <el-table-column prop="inQuantity" label="入库总量" width="120" align="right">
@@ -156,7 +191,7 @@
                         </el-select>
                     </el-form-item>
                     <el-form-item>
-                        <el-button type="primary" @click="loadTrendData">查询</el-button>
+                        <el-button type="primary" @click="loadTrendData" :loading="loading.trend">查询</el-button>
                     </el-form-item>
                 </el-form>
 
@@ -195,15 +230,30 @@
                     </el-col>
                 </el-row>
 
+                <el-alert
+                        v-if="supplierStats.length === 0 && !loading.supplier"
+                        title="提示"
+                        type="info"
+                        :closable="false"
+                        style="margin-top: 20px;">
+                    暂无供应商统计数据。请检查SUPPLIER表中是否有状态为'合作中'的供应商，以及MATERIAL表中的物料是否关联了supplier_id。
+                </el-alert>
+
+                <!-- 修复：始终显示图表容器，不用v-if控制 -->
                 <div class="chart-card" style="margin-top: 20px;">
                     <h3>供应商统计</h3>
                     <div id="supplierChart" style="height: 400px;"></div>
                 </div>
 
-                <el-table :data="supplierStats" stripe border style="margin-top: 20px;">
+                <el-table
+                        :data="supplierStats"
+                        stripe
+                        border
+                        style="margin-top: 20px;"
+                        v-loading="loading.supplier">
                     <el-table-column prop="supplier_name" label="供应商名称" width="200"></el-table-column>
                     <el-table-column prop="material_count" label="物料数量" width="100" align="right"></el-table-column>
-                    <el-table-column prop="total_value" label="库存总值" width="120" align="right">
+                    <el-table-column label="库存总值" width="150" align="right">
                         <template #default="scope">
                             ¥{{ formatNumber(scope.row.total_value) }}
                         </template>
@@ -234,6 +284,12 @@
                 activeTab: 'monthly',
                 materials: [],
                 yearOptions: yearOptions,
+                loading: {
+                    monthly: false,
+                    category: false,
+                    trend: false,
+                    supplier: false
+                },
                 monthlyQuery: {
                     year: currentYear,
                     month: new Date().getMonth() + 1
@@ -256,17 +312,30 @@
             }
         },
         mounted() {
+            console.log('统计页面加载完成');
             this.loadMaterials();
             this.loadMonthlyStats();
             this.loadOverviewData();
             this.loadSupplierStats();
         },
         methods: {
+            handleTabChange(tabName) {
+                console.log('切换到标签页:', tabName);
+                // 当切换到概览标签页时，重新渲染供应商图表
+                if (tabName === 'overview') {
+                    this.$nextTick(() => {
+                        if (this.supplierStats.length > 0) {
+                            this.renderSupplierChart();
+                        }
+                    });
+                }
+            },
+
             async loadMaterials() {
                 try {
                     const res = await axios.get('/api/material/list');
                     if (res.data.code === 200) {
-                        this.materials = res.data.data;
+                        this.materials = res.data.data || [];
                         if (this.materials.length > 0 && !this.trendQuery.materialId) {
                             this.trendQuery.materialId = this.materials[0].materialId;
                         }
@@ -275,7 +344,9 @@
                     console.error('加载物料失败:', error);
                 }
             },
+
             async loadMonthlyStats() {
+                this.loading.monthly = true;
                 try {
                     const dto = {
                         year: this.monthlyQuery.year,
@@ -283,290 +354,303 @@
                     };
 
                     const res = await axios.post('/api/statistics/monthly', dto);
+
                     if (res.data.code === 200) {
-                        this.monthlyStats = res.data.data;
+                        this.monthlyStats = res.data.data || [];
                         this.$nextTick(() => {
                             this.renderMonthlyChart();
                         });
                     }
                 } catch (error) {
+                    console.error('加载月度统计失败:', error);
                     ElMessage.error('加载统计数据失败');
+                } finally {
+                    this.loading.monthly = false;
                 }
             },
+
             renderMonthlyChart() {
+                const chartDom = document.getElementById('monthlyChart');
+                if (!chartDom) return;
+
                 if (this.monthlyChart) {
                     this.monthlyChart.dispose();
                 }
-                this.monthlyChart = echarts.init(document.getElementById('monthlyChart'));
+                this.monthlyChart = echarts.init(chartDom);
 
                 if (!this.monthlyStats || this.monthlyStats.length === 0) {
-                    const option = {
+                    this.monthlyChart.setOption({
                         title: {
-                            text: '暂无数据',
+                            text: `${this.monthlyQuery.year}年${this.monthlyQuery.month}月暂无数据`,
                             left: 'center',
-                            top: 'center'
+                            top: 'center',
+                            textStyle: { color: '#909399', fontSize: 16 }
                         }
-                    };
-                    this.monthlyChart.setOption(option);
+                    });
                     return;
                 }
 
-                const materials = this.monthlyStats.map(s => s.materialName);
-                const inData = this.monthlyStats.map(s => parseFloat(s.inQuantity) || 0);
-                const outData = this.monthlyStats.map(s => parseFloat(s.outQuantity) || 0);
+                const materials = this.monthlyStats.map(s => s.materialName || s.materialId);
+                const inData = this.monthlyStats.map(s => this.parseNumber(s.inQuantity));
+                const outData = this.monthlyStats.map(s => this.parseNumber(s.outQuantity));
 
-                const option = {
+                this.monthlyChart.setOption({
                     tooltip: { trigger: 'axis' },
-                    legend: { data: ['入库', '出库'] },
+                    legend: { data: ['入库', '出库'], top: 10 },
+                    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
                     xAxis: {
                         type: 'category',
                         data: materials,
-                        axisLabel: { rotate: 45, interval: 0 }
+                        axisLabel: { rotate: 45, interval: 0, fontSize: 12 }
                     },
-                    yAxis: { type: 'value' },
+                    yAxis: { type: 'value', name: '数量' },
                     series: [
                         {
                             name: '入库',
                             type: 'bar',
                             data: inData,
-                            itemStyle: { color: '#67c23a' }
+                            itemStyle: { color: '#67c23a' },
+                            label: { show: true, position: 'top' }
                         },
                         {
                             name: '出库',
                             type: 'bar',
                             data: outData,
-                            itemStyle: { color: '#f56c6c' }
+                            itemStyle: { color: '#f56c6c' },
+                            label: { show: true, position: 'top' }
                         }
                     ]
-                };
-                this.monthlyChart.setOption(option);
+                });
             },
+
             async loadCategoryStats() {
                 if (!this.categoryQuery.dateRange || this.categoryQuery.dateRange.length !== 2) {
                     ElMessage.warning('请选择完整的时间范围');
                     return;
                 }
 
+                this.loading.category = true;
                 try {
-                    const startDate = this.categoryQuery.dateRange[0];
-                    const endDate = this.categoryQuery.dateRange[1];
-
                     const res = await axios.get('/api/statistics/categoryFlow', {
-                        params: { startDate, endDate }
+                        params: {
+                            startDate: this.categoryQuery.dateRange[0],
+                            endDate: this.categoryQuery.dateRange[1]
+                        }
                     });
 
                     if (res.data.code === 200) {
-                        this.categoryStats = res.data.data;
+                        this.categoryStats = res.data.data || [];
                         this.$nextTick(() => {
                             this.renderCategoryChart();
                         });
                     }
                 } catch (error) {
+                    console.error('加载类别统计失败:', error);
                     ElMessage.error('加载统计数据失败');
+                } finally {
+                    this.loading.category = false;
                 }
             },
+
             renderCategoryChart() {
+                const chartDom = document.getElementById('categoryChart');
+                if (!chartDom) return;
+
                 if (this.categoryChart) {
                     this.categoryChart.dispose();
                 }
-                this.categoryChart = echarts.init(document.getElementById('categoryChart'));
+                this.categoryChart = echarts.init(chartDom);
 
                 if (!this.categoryStats || this.categoryStats.length === 0) {
-                    const option = {
+                    this.categoryChart.setOption({
                         title: {
-                            text: '暂无数据',
+                            text: '所选时间范围内暂无数据',
                             left: 'center',
-                            top: 'center'
+                            top: 'center',
+                            textStyle: { color: '#909399', fontSize: 16 }
                         }
-                    };
-                    this.categoryChart.setOption(option);
+                    });
                     return;
                 }
 
-                // 按类别分组统计
                 const categoryMap = {};
                 this.categoryStats.forEach(item => {
                     if (!categoryMap[item.categoryName]) {
-                        categoryMap[item.categoryName] = {
-                            inQuantity: 0,
-                            outQuantity: 0
-                        };
+                        categoryMap[item.categoryName] = { inQuantity: 0, outQuantity: 0 };
                     }
-                    categoryMap[item.categoryName].inQuantity += parseFloat(item.inQuantity) || 0;
-                    categoryMap[item.categoryName].outQuantity += parseFloat(item.outQuantity) || 0;
+                    categoryMap[item.categoryName].inQuantity += this.parseNumber(item.inQuantity);
+                    categoryMap[item.categoryName].outQuantity += this.parseNumber(item.outQuantity);
                 });
 
                 const categories = Object.keys(categoryMap);
                 const inData = categories.map(cat => categoryMap[cat].inQuantity);
                 const outData = categories.map(cat => categoryMap[cat].outQuantity);
 
-                const option = {
+                this.categoryChart.setOption({
                     tooltip: { trigger: 'axis' },
-                    legend: { data: ['入库', '出库'] },
-                    xAxis: {
-                        type: 'category',
-                        data: categories,
-                        axisLabel: { rotate: 45 }
-                    },
-                    yAxis: { type: 'value' },
+                    legend: { data: ['入库', '出库'], top: 10 },
+                    grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+                    xAxis: { type: 'category', data: categories, axisLabel: { rotate: 45 } },
+                    yAxis: { type: 'value', name: '数量' },
                     series: [
-                        {
-                            name: '入库',
-                            type: 'bar',
-                            data: inData,
-                            itemStyle: { color: '#67c23a' }
-                        },
-                        {
-                            name: '出库',
-                            type: 'bar',
-                            data: outData,
-                            itemStyle: { color: '#f56c6c' }
-                        }
+                        { name: '入库', type: 'bar', data: inData, itemStyle: { color: '#67c23a' } },
+                        { name: '出库', type: 'bar', data: outData, itemStyle: { color: '#f56c6c' } }
                     ]
-                };
-                this.categoryChart.setOption(option);
+                });
             },
+
             async loadTrendData() {
                 if (!this.trendQuery.materialId) {
                     ElMessage.warning('请选择物料');
                     return;
                 }
 
+                this.loading.trend = true;
                 try {
                     const res = await axios.get(`/api/statistics/trend/${this.trendQuery.materialId}`, {
                         params: { months: this.trendQuery.months }
                     });
 
                     if (res.data.code === 200) {
-                        this.renderTrendChart(res.data.data);
+                        this.renderTrendChart(res.data.data || []);
                     }
                 } catch (error) {
+                    console.error('加载趋势数据失败:', error);
                     ElMessage.error('加载趋势数据失败');
+                } finally {
+                    this.loading.trend = false;
                 }
             },
+
             renderTrendChart(data) {
+                const chartDom = document.getElementById('trendChart');
+                if (!chartDom) return;
+
                 if (this.trendChart) {
                     this.trendChart.dispose();
                 }
-                this.trendChart = echarts.init(document.getElementById('trendChart'));
+                this.trendChart = echarts.init(chartDom);
 
                 if (!data || data.length === 0) {
-                    const option = {
+                    this.trendChart.setOption({
                         title: {
-                            text: '暂无数据',
+                            text: '该物料暂无历史数据',
                             left: 'center',
-                            top: 'center'
+                            top: 'center',
+                            textStyle: { color: '#909399', fontSize: 16 }
                         }
-                    };
-                    this.trendChart.setOption(option);
+                    });
                     return;
                 }
 
                 const months = data.map(item => item.month);
-                const inData = data.map(item => parseFloat(item.in_quantity) || 0);
-                const outData = data.map(item => parseFloat(item.out_quantity) || 0);
-                const stockData = data.map(item => parseFloat(item.end_stock) || 0);
+                const inData = data.map(item => this.parseNumber(item.in_quantity));
+                const outData = data.map(item => this.parseNumber(item.out_quantity));
+                const stockData = data.map(item => this.parseNumber(item.end_stock));
 
-                const option = {
-                    tooltip: {
-                        trigger: 'axis',
-                        axisPointer: { type: 'cross' }
-                    },
-                    legend: { data: ['入库', '出库', '库存'] },
-                    xAxis: {
-                        type: 'category',
-                        data: months
-                    },
+                this.trendChart.setOption({
+                    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                    legend: { data: ['入库', '出库', '库存'], top: 10 },
+                    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                    xAxis: { type: 'category', data: months, boundaryGap: false },
                     yAxis: [
-                        {
-                            type: 'value',
-                            name: '出入库量'
-                        },
-                        {
-                            type: 'value',
-                            name: '库存'
-                        }
+                        { type: 'value', name: '出入库量', position: 'left' },
+                        { type: 'value', name: '库存', position: 'right' }
                     ],
                     series: [
-                        {
-                            name: '入库',
-                            type: 'line',
-                            data: inData,
-                            itemStyle: { color: '#67c23a' },
-                            smooth: true
-                        },
-                        {
-                            name: '出库',
-                            type: 'line',
-                            data: outData,
-                            itemStyle: { color: '#f56c6c' },
-                            smooth: true
-                        },
-                        {
-                            name: '库存',
-                            type: 'line',
-                            yAxisIndex: 1,
-                            data: stockData,
-                            itemStyle: { color: '#409eff' },
-                            smooth: true
-                        }
+                        { name: '入库', type: 'line', data: inData, itemStyle: { color: '#67c23a' }, smooth: true },
+                        { name: '出库', type: 'line', data: outData, itemStyle: { color: '#f56c6c' }, smooth: true },
+                        { name: '库存', type: 'line', yAxisIndex: 1, data: stockData, itemStyle: { color: '#409eff' }, smooth: true }
                     ]
-                };
-                this.trendChart.setOption(option);
+                });
             },
+
             async loadOverviewData() {
                 try {
                     const res = await axios.get('/api/statistics/overview');
                     if (res.data.code === 200) {
-                        this.overviewData = res.data.data;
+                        this.overviewData = res.data.data || {};
                     }
                 } catch (error) {
                     console.error('加载概览数据失败:', error);
                 }
             },
+
             async loadSupplierStats() {
+                this.loading.supplier = true;
                 try {
+                    console.log('正在加载供应商统计...');
                     const res = await axios.get('/api/statistics/supplierStats');
+                    console.log('供应商统计响应:', res.data);
+
                     if (res.data.code === 200) {
-                        this.supplierStats = res.data.data;
-                        this.$nextTick(() => {
+                        this.supplierStats = res.data.data || [];
+                        console.log('供应商数据:', this.supplierStats);
+
+                        // 延迟渲染图表，确保DOM已准备好
+                        setTimeout(() => {
                             this.renderSupplierChart();
-                        });
+                        }, 100);
                     }
                 } catch (error) {
                     console.error('加载供应商统计失败:', error);
+                } finally {
+                    this.loading.supplier = false;
                 }
             },
+
             renderSupplierChart() {
+                const chartDom = document.getElementById('supplierChart');
+                if (!chartDom) {
+                    console.error('找不到图表容器supplierChart');
+                    return;
+                }
+
+                console.log('开始渲染供应商图表，数据量:', this.supplierStats.length);
+
                 if (this.supplierChart) {
                     this.supplierChart.dispose();
                 }
-                this.supplierChart = echarts.init(document.getElementById('supplierChart'));
+                this.supplierChart = echarts.init(chartDom);
 
+                // 修复：即使没有数据也渲染一个提示图表
                 if (!this.supplierStats || this.supplierStats.length === 0) {
-                    const option = {
+                    console.log('供应商数据为空，显示提示');
+                    this.supplierChart.setOption({
                         title: {
-                            text: '暂无数据',
+                            text: '暂无供应商统计数据',
+                            subtext: '请检查数据库中是否有合作中的供应商',
                             left: 'center',
-                            top: 'center'
+                            top: 'center',
+                            textStyle: { color: '#909399', fontSize: 16 }
                         }
-                    };
-                    this.supplierChart.setOption(option);
+                    });
                     return;
                 }
 
                 const suppliers = this.supplierStats.map(s => s.supplier_name);
-                const materialCounts = this.supplierStats.map(s => s.material_count || 0);
+                const materialCounts = this.supplierStats.map(s => parseInt(s.material_count) || 0);
 
-                const option = {
+                console.log('供应商图表数据:', { suppliers, materialCounts });
+
+                this.supplierChart.setOption({
                     tooltip: {
                         trigger: 'axis',
                         formatter: '{b}: {c}个物料'
                     },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '15%',
+                        containLabel: true
+                    },
                     xAxis: {
                         type: 'category',
                         data: suppliers,
-                        axisLabel: { rotate: 45 }
+                        axisLabel: {
+                            rotate: 45,
+                            interval: 0
+                        }
                     },
                     yAxis: {
                         type: 'value',
@@ -580,15 +664,26 @@
                                 const colorList = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de'];
                                 return colorList[params.dataIndex % colorList.length];
                             }
+                        },
+                        label: {
+                            show: true,
+                            position: 'top',
+                            formatter: '{c}'
                         }
                     }]
-                };
-                this.supplierChart.setOption(option);
+                });
+
+                console.log('供应商图表渲染完成');
             },
-            formatNumber(value) {
-                if (value === null || value === undefined) return '0';
+
+            parseNumber(value) {
+                if (value === null || value === undefined || value === '') return 0;
                 const num = parseFloat(value);
-                if (isNaN(num)) return '0';
+                return isNaN(num) ? 0 : num;
+            },
+
+            formatNumber(value) {
+                const num = this.parseNumber(value);
                 return num.toLocaleString('zh-CN', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2

@@ -205,7 +205,7 @@
 
                 <iframe
                         v-show="activeMenu === 'statistics'"
-                        src="statistics.html"
+                        src="/warehouse/statistics.html"
                         frameborder="0"
                         style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
                 </iframe>
@@ -259,6 +259,10 @@
                         this.dashboardStats[1].value = '¥' + this.formatNumber(data.total_value);
                         this.dashboardStats[3].value = data.today_inout || 0;
 
+                        // 设置低库存预警
+                        this.dashboardStats[2].value = data.low_stock_count || 0;
+                        this.dashboardStats[2].alert = data.low_stock_count || 0;
+
                         // 渲染库存状态分布图
                         this.renderStockStatusChart(data);
                     }
@@ -268,7 +272,8 @@
                     if (alertStatsRes.data.code === 200) {
                         const data = alertStatsRes.data.data;
                         this.alertCount = data.unhandled_count || 0;
-                        this.dashboardStats[2].value = this.alertCount;
+
+                        // 更新预警数量显示
                         this.dashboardStats[2].alert = this.alertCount;
 
                         // 渲染预警类型分布图
@@ -276,11 +281,36 @@
                     }
 
                     // 3. 获取供应商统计数据
-                    await this.loadSupplierStatsForTrend();
+                    const supplierStatsRes = await axios.get('/api/statistics/supplierStats');
+                    if (supplierStatsRes.data.code === 200) {
+                        // 使用供应商数据来展示趋势
+                        this.renderTrendChart(supplierStatsRes.data.data);
+                    }
+
+                    // 4. 获取月度数据（可选）
+                    const monthlyRes = await axios.get('/api/statistics/monthly');
+                    if (monthlyRes.data.code === 200) {
+                        // 可以用于其他图表
+                        console.log('月度数据:', monthlyRes.data.data);
+                    }
 
                 } catch (error) {
                     console.error('加载数据失败:', error);
-                    ElMessage.error('加载数据失败');
+
+                    // 如果 API 不存在，显示默认数据
+                    if (error.response && error.response.status === 404) {
+                        console.log('统计接口尚未实现，显示默认数据');
+
+                        // 显示一些默认数据
+                        this.dashboardStats[0].value = 0;
+                        this.dashboardStats[1].value = '¥0';
+                        this.dashboardStats[2].value = 0;
+                        this.dashboardStats[3].value = 0;
+
+
+                    } else {
+                        ElMessage.error('加载数据失败: ' + error.message);
+                    }
                 }
             },
             async loadSupplierStatsForTrend() {

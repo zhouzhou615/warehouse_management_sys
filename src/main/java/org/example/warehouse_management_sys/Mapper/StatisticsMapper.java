@@ -21,6 +21,8 @@ public interface StatisticsMapper {
     List<Map<String, Object>> materialTrend(@Param("materialId") String materialId,
                                             @Param("months") Integer months);
 
+
+
     // 库存总览
     Map<String, Object> stockOverview();
 
