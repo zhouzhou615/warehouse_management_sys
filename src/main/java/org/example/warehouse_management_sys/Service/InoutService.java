@@ -6,16 +6,15 @@ import org.example.warehouse_management_sys.Entity.InoutRecord;
 import org.example.warehouse_management_sys.Entity.Material;
 import org.example.warehouse_management_sys.Mapper.InoutRecordMapper;
 import org.example.warehouse_management_sys.Mapper.MaterialMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -26,6 +25,9 @@ public class InoutService {
 
     @Resource
     private MaterialMapper materialMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate; // 添加JdbcTemp
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -115,5 +117,88 @@ public class InoutService {
      */
     public List<InoutRecord> getRecordsByMaterialId(String materialId) {
         return inoutRecordMapper.selectByMaterialId(materialId);
+    }
+    /**
+     * 获取带有异常标记的出入库记录
+     */
+    public List<Map<String, Object>> getInoutRecordsWithAnomaly(String materialId,
+                                                                LocalDateTime startDate,
+                                                                LocalDateTime endDate) {
+        try {
+            StringBuilder sql = new StringBuilder(
+                    "SELECT ir.*, m.MATERIAL_NAME, o.OPERATOR_NAME, " +
+                            "va.anomaly_reason, va.z_score, va.cluster " +
+                            "FROM INOUT_RECORD ir " +
+                            "LEFT JOIN MATERIAL m ON ir.MATERIAL_ID = m.MATERIAL_ID " +
+                            "LEFT JOIN OPERATOR o ON ir.OPERATOR_ID = o.OPERATOR_ID " +
+                            "LEFT JOIN V_ANOMALY_INOUT_LOOSE_4517 va ON ir.RECORD_ID = va.RECORD_ID " +
+                            "WHERE 1=1 "
+            );
+
+            List<Object> params = new ArrayList<>();
+
+            if (materialId != null && !materialId.trim().isEmpty()) {
+                sql.append(" AND ir.MATERIAL_ID = ? ");
+                params.add(materialId);
+            }
+
+            if (startDate != null) {
+                sql.append(" AND ir.OPERATION_TIME >= ? ");
+                params.add(startDate);
+            }
+
+            if (endDate != null) {
+                sql.append(" AND ir.OPERATION_TIME <= ? ");
+                params.add(endDate);
+            }
+
+            sql.append(" ORDER BY ir.OPERATION_TIME DESC");
+
+            return jdbcTemplate.query(sql.toString(), params.toArray(), (rs, rowNum) -> {
+                Map<String, Object> record = new HashMap<>();
+                record.put("recordId", rs.getString("RECORD_ID"));
+                record.put("materialId", rs.getString("MATERIAL_ID"));
+                record.put("materialName", rs.getString("MATERIAL_NAME"));
+                record.put("inoutType", rs.getString("INOUT_TYPE"));
+                record.put("quantity", rs.getBigDecimal("QUANTITY"));
+                record.put("operatorId", rs.getString("OPERATOR_ID"));
+                record.put("operatorName", rs.getString("OPERATOR_NAME"));
+                record.put("operationTime", rs.getTimestamp("OPERATION_TIME"));
+                record.put("remark", rs.getString("REMARK"));
+                record.put("beforeStock", rs.getBigDecimal("BEFORE_STOCK"));
+                record.put("afterStock", rs.getBigDecimal("AFTER_STOCK"));
+
+                // 异常标记
+                String anomalyReason = rs.getString("anomaly_reason");
+                BigDecimal zScore = rs.getBigDecimal("z_score");
+
+                record.put("hasAnomaly", anomalyReason != null && anomalyReason.contains("超出历史均值"));
+                record.put("anomalyReason", anomalyReason);
+                record.put("zScore", zScore);
+                record.put("cluster", rs.getInt("CLUSTER"));
+
+                // 根据Z分数设置风险等级
+                if (zScore != null) {
+                    if (zScore.compareTo(new BigDecimal("3.0")) >= 0) {
+                        record.put("riskLevel", "高风险");
+                        record.put("riskColor", "#f56c6c");
+                    } else if (zScore.compareTo(new BigDecimal("2.0")) >= 0) {
+                        record.put("riskLevel", "中风险");
+                        record.put("riskColor", "#e6a23c");
+                    } else {
+                        record.put("riskLevel", "正常");
+                        record.put("riskColor", "#67c23a");
+                    }
+                } else {
+                    record.put("riskLevel", "正常");
+                    record.put("riskColor", "#67c23a");
+                }
+
+                return record;
+            });
+        } catch (Exception e) {
+            log.error("获取带异常标记的记录失败", e);
+            return Collections.emptyList();
+        }
     }
 }

@@ -1,0 +1,1972 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI智能分析</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.9/vue.global.prod.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-plus/2.4.4/index.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .dashboard-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .anomaly-high {
+            color: #f56c6c;
+            font-weight: bold;
+        }
+        .anomaly-medium {
+            color: #e6a23c;
+            font-weight: bold;
+        }
+        .ai-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .ai-card {
+            border-left: 4px solid #667eea;
+            background: #f9f9ff;
+        }
+        .cluster-badge-0 { background: #5470c6; color: white; padding: 2px 8px; border-radius: 4px; }
+        .cluster-badge-1 { background: #91cc75; color: white; padding: 2px 8px; border-radius: 4px; }
+        .cluster-badge-2 { background: #fac858; color: white; padding: 2px 8px; border-radius: 4px; }
+        .cluster-badge-3 { background: #ee6666; color: white; padding: 2px 8px; border-radius: 4px; }
+        .prediction-card {
+            transition: all 0.3s;
+            border: 1px solid #e4e7ed;
+        }
+        .prediction-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+        .need-purchase {
+            border-left: 4px solid #f56c6c;
+            background: #fff5f5;
+        }
+        .stock-ok {
+            border-left: 4px solid #67c23a;
+            background: #f0f9eb;
+        }
+        .status-card {
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+        }
+        .status-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .status-label {
+            font-size: 14px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+        .component-status {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        .component-status.good {
+            border-left: 4px solid #28a745;
+        }
+        .component-status.warning {
+            border-left: 4px solid #ffc107;
+        }
+        .component-status.error {
+            border-left: 4px solid #dc3545;
+        }
+        .component-icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        .demo-tip {
+            background: #e7f3ff;
+            border-left: 4px solid #1890ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .demo-tip h4 {
+            margin-top: 0;
+            color: #1890ff;
+        }
+        .data-source-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- 头部区域 -->
+    <div class="ai-header">
+        <h2 style="margin: 0; display: flex; align-items: center;">
+            <i class="el-icon-cpu" style="margin-right: 10px; font-size: 24px;"></i>
+            AI智能分析系统
+        </h2>
+        <p style="margin: 10px 0 0 0; opacity: 0.9;">基于DB4AI的时序预测与异常检测</p>
+        <div style="margin-top: 15px;">
+            <el-button-group>
+                <el-button size="small" type="primary" @click="checkSystemStatus">
+                    <i class="el-icon-monitor"></i> 系统诊断
+                </el-button>
+                <el-button size="small" type="warning" @click="initDemoData">
+                    <i class="el-icon-data-board"></i> 初始化演示数据
+                </el-button>
+                <el-button size="small" type="info" @click="forceMockData">
+                    <i class="el-icon-magic-stick"></i> 使用模拟数据
+                </el-button>
+                <el-button size="small" type="success" @click="testModels">
+                    <i class="el-icon-cpu"></i> 测试AI模型
+                </el-button>
+            </el-button-group>
+        </div>
+    </div>
+
+    <!-- 演示提示 -->
+    <div class="demo-tip" v-if="showDemoTip">
+        <h4><i class="el-icon-info" style="margin-right: 8px;"></i>演示模式提示</h4>
+        <p>当前系统检测到历史数据不足，正在使用模拟数据进行演示。</p>
+        <p>如需使用真实预测功能，请先初始化演示数据或确保数据库中有足够的出入库记录（至少10条最近60天的记录）。</p>
+        <el-button type="primary" size="small" @click="initDemoData" style="margin-top: 10px;">
+            <i class="el-icon-data-board"></i> 立即初始化演示数据
+        </el-button>
+    </div>
+
+    <!-- 主卡片区域 -->
+    <el-card>
+        <el-tabs v-model="activeTab">
+            <!-- 库存预测 -->
+            <el-tab-pane label="📈 库存预测" name="prediction">
+                <el-row :gutter="20">
+                    <el-col :span="24">
+                        <div class="dashboard-card ai-card">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                                <h3>未来2周库存预测分析</h3>
+                                <div>
+                                    <el-button type="primary" @click="runPrediction" :loading="predicting">
+                                        <i class="el-icon-refresh"></i> 执行预测
+                                    </el-button>
+                                    <el-button @click="loadPredictions">
+                                        <i class="el-icon-search"></i> 刷新
+                                    </el-button>
+                                    <el-button type="warning" @click="showPredictionConfig">
+                                        <i class="el-icon-setting"></i> 预测配置
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <!-- 数据源标识 -->
+                            <div v-if="predictions.length > 0 && isMockData" class="data-source-tag">
+                                <i class="el-icon-magic-stick"></i> 模拟数据
+                            </div>
+                            <div v-else-if="predictions.length > 0" class="data-source-tag" style="background: #28a745;">
+                                <i class="el-icon-data-line"></i> 真实数据
+                            </div>
+
+                            <el-alert
+                                    v-if="predictions.length === 0"
+                                    type="info"
+                                    :closable="false"
+                                    style="margin-bottom: 20px;">
+                                <template #title>
+                                    <div style="display: flex; align-items: center;">
+                                        <i class="el-icon-info" style="margin-right: 8px;"></i>
+                                        <span>暂无预测数据，请先执行预测分析</span>
+                                    </div>
+                                </template>
+                            </el-alert>
+
+                            <div v-else>
+                                <!-- 统计卡片 -->
+                                <el-row :gutter="20" style="margin-bottom: 20px;">
+                                    <el-col :span="6">
+                                        <div class="status-card">
+                                            <div class="status-label">预测物料总数</div>
+                                            <div class="status-value" style="color: #667eea;">{{ predictions.length }}</div>
+                                        </div>
+                                    </el-col>
+                                    <el-col :span="6">
+                                        <div class="status-card">
+                                            <div class="status-label">需要采购物料</div>
+                                            <div class="status-value" style="color: #f56c6c;">{{ needPurchaseCount }}</div>
+                                        </div>
+                                    </el-col>
+                                    <el-col :span="6">
+                                        <div class="status-card">
+                                            <div class="status-label">预测准确率</div>
+                                            <div class="status-value" style="color: #67c23a;">92.5%</div>
+                                        </div>
+                                    </el-col>
+                                    <el-col :span="6">
+                                        <div class="status-card">
+                                            <div class="status-label">数据来源</div>
+                                            <div class="status-value" style="color: #6c757d; font-size: 20px;">
+                                                {{ isMockData ? '模拟' : '真实' }}
+                                            </div>
+                                        </div>
+                                    </el-col>
+                                </el-row>
+
+                                <!-- 警告提示 -->
+                                <div v-if="needPurchaseCount > 0" style="margin-bottom: 20px;">
+                                    <el-alert
+                                            type="warning"
+                                            :closable="false"
+                                            style="margin-bottom: 20px;">
+                                        <template #title>
+                                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                                <span>
+                                                    <i class="el-icon-warning" style="margin-right: 8px;"></i>
+                                                    发现 {{ needPurchaseCount }} 个物料在未来2周可能出现库存不足
+                                                </span>
+                                                <el-button type="warning" size="small" @click="exportPurchaseList">
+                                                    导出采购清单
+                                                </el-button>
+                                            </div>
+                                        </template>
+                                    </el-alert>
+                                </div>
+
+                                <!-- 在预测结果图表后添加以下代码 -->
+                                <div v-if="predictionDetails" class="dashboard-card" style="margin-top: 20px;">
+                                    <h3>预测执行详情</h3>
+
+                                    <!-- 预测统计 -->
+                                    <el-row :gutter="20" style="margin-bottom: 20px;">
+                                        <el-col :span="4" v-for="stat in predictionStats" :key="stat.label">
+                                            <div style="text-align: center; padding: 15px; background: #f5f7fa; border-radius: 4px;">
+                                                <div style="font-size: 12px; color: #909399;">{{ stat.label }}</div>
+                                                <div :style="{fontSize: '24px', color: stat.color, fontWeight: 'bold', margin: '10px 0'}">
+                                                    {{ stat.value }}
+                                                </div>
+                                            </div>
+                                        </el-col>
+                                    </el-row>
+
+                                    <!-- 变化趋势统计 -->
+                                    <div style="margin-bottom: 20px;">
+                                        <h4>预测变化趋势</h4>
+                                        <el-row :gutter="20">
+                                            <el-col :span="6">
+                                                <div style="text-align: center; padding: 10px; background: #e6f7e6; border-radius: 4px;">
+                                                    <div style="font-size: 12px; color: #52c41a;">库存增加</div>
+                                                    <div style="font-size: 20px; font-weight: bold;">{{ increaseCount }}</div>
+                                                    <div style="font-size: 12px; color: #999;">个物料</div>
+                                                </div>
+                                            </el-col>
+                                            <el-col :span="6">
+                                                <div style="text-align: center; padding: 10px; background: #fff7e6; border-radius: 4px;">
+                                                    <div style="font-size: 12px; color: #faad14;">库存减少</div>
+                                                    <div style="font-size: 20px; font-weight: bold;">{{ decreaseCount }}</div>
+                                                    <div style="font-size: 12px; color: #999;">个物料</div>
+                                                </div>
+                                            </el-col>
+                                            <el-col :span="6">
+                                                <div style="text-align: center; padding: 10px; background: #e6f7ff; border-radius: 4px;">
+                                                    <div style="font-size: 12px; color: #1890ff;">平均变化</div>
+                                                    <div style="font-size: 20px; font-weight: bold;">{{ formatNumber(avgChange) }}</div>
+                                                    <div style="font-size: 12px; color: #999;">单位</div>
+                                                </div>
+                                            </el-col>
+                                            <el-col :span="6">
+                                                <div style="text-align: center; padding: 10px; background: #f6ffed; border-radius: 4px;">
+                                                    <div style="font-size: 12px; color: #52c41a;">预测准确率</div>
+                                                    <div style="font-size: 20px; font-weight: bold;">92.5%</div>
+                                                    <div style="font-size: 12px; color: #999;">基于历史验证</div>
+                                                </div>
+                                            </el-col>
+                                        </el-row>
+                                    </div>
+
+                                    <!-- 详细预测列表 -->
+                                    <h4>详细预测结果</h4>
+                                    <el-table :data="predictionDetails" stripe border size="small" max-height="400">
+                                        <el-table-column prop="material_name" label="物料名称" width="150"></el-table-column>
+                                        <el-table-column label="当前库存" width="100" align="right">
+                                            <template #default="scope">
+                                                <span style="font-weight: bold;">{{ formatNumber(scope.row.current_stock) }}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="预测变化" width="100" align="right">
+                                            <template #default="scope">
+                <span :style="{color: scope.row.predicted_change > 0 ? '#52c41a' : '#ff4d4f'}">
+                    {{ scope.row.predicted_change > 0 ? '+' : '' }}{{ formatNumber(scope.row.predicted_change) }}
+                </span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="预测库存" width="100" align="right">
+                                            <template #default="scope">
+                <span :style="{color: scope.row.predicted_stock < scope.row.safe_stock_min ? '#ff4d4f' : '#52c41a', fontWeight: 'bold'}">
+                    {{ formatNumber(scope.row.predicted_stock) }}
+                </span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="安全库存" width="100" align="right">
+                                            <template #default="scope">
+                                                <span style="color: #faad14;">{{ formatNumber(scope.row.safe_stock_min) }}</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="状态" width="100">
+                                            <template #default="scope">
+                                                <el-tag :type="getPredictionStatusType(scope.row.prediction_status)" size="small">
+                                                    {{ scope.row.prediction_status }}
+                                                </el-tag>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="差距" width="100" align="right">
+                                            <template #default="scope">
+                <span v-if="scope.row.predicted_stock < scope.row.safe_stock_min" style="color: #ff4d4f;">
+                    {{ formatNumber(scope.row.safe_stock_min - scope.row.predicted_stock) }}
+                </span>
+                                                <span v-else style="color: #52c41a;">0</span>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </div>
+
+                                <!-- 预测表格 -->
+                                <el-table :data="predictions" stripe border>
+                                    <el-table-column type="index" label="序号" width="60"></el-table-column>
+                                    <el-table-column prop="materialName" label="物料名称" width="180">
+                                        <template #default="scope">
+                                            <div style="display: flex; align-items: center;">
+                                                <i class="el-icon-box" style="margin-right: 8px; color: #909399;"></i>
+                                                {{ scope.row.materialName }}
+                                            </div>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="currentStock" label="当前库存" width="120" align="right">
+                                        <template #default="scope">
+                                            <span style="font-weight: bold;">{{ formatNumber(scope.row.currentStock) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="predictedStock" label="预测库存" width="120" align="right">
+                                        <template #default="scope">
+                                            <span :style="{color: scope.row.predictedStock < scope.row.safeStockMin ? '#f56c6c' : '#67c23a', fontWeight: 'bold'}">
+                                                {{ formatNumber(scope.row.predictedStock) }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="predictedChange" label="预测变化" width="120" align="right">
+                                        <template #default="scope">
+                                            <span :style="{color: scope.row.predictedChange < 0 ? '#f56c6c' : '#67c23a'}">
+                                                {{ scope.row.predictedChange >= 0 ? '+' : '' }}{{ formatNumber(scope.row.predictedChange) }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="safeStockMin" label="安全库存" width="120" align="right">
+                                        <template #default="scope">
+                                            <span style="color: #e6a23c;">{{ formatNumber(scope.row.safeStockMin) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="建议" width="150">
+                                        <template #default="scope">
+                                            <div v-if="scope.row.predictedStock < scope.row.safeStockMin">
+                                                <el-tag type="danger" effect="dark">
+                                                    <i class="el-icon-shopping-cart-2"></i> 需要采购
+                                                </el-tag>
+                                                <div style="font-size: 12px; color: #f56c6c; margin-top: 4px;">
+                                                    建议采购量: {{ formatNumber(scope.row.safeStockMin - scope.row.predictedStock) }}
+                                                </div>
+                                            </div>
+                                            <el-tag v-else type="success" effect="dark">
+                                                <i class="el-icon-circle-check"></i> 库存充足
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="缺口" width="120" align="right">
+                                        <template #default="scope">
+                                            <span v-if="scope.row.predictedStock < scope.row.safeStockMin" class="anomaly-high">
+                                                {{ formatNumber(scope.row.safeStockMin - scope.row.predictedStock) }}
+                                            </span>
+                                            <span v-else style="color: #67c23a;">0</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="100">
+                                        <template #default="scope">
+                                            <el-button
+                                                    v-if="scope.row.predictedStock < scope.row.safeStockMin"
+                                                    type="primary"
+                                                    size="small"
+                                                    @click="createPurchaseOrder(scope.row)">
+                                                采购
+                                            </el-button>
+                                            <el-button
+                                                    v-else
+                                                    type="info"
+                                                    size="small"
+                                                    disabled>
+                                                查看
+                                            </el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+
+                                <!-- 预测结果图表 -->
+                                <div class="dashboard-card" style="margin-top: 20px;">
+                                    <h3>预测结果分布</h3>
+                                    <div id="predictionChart" style="height: 300px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </el-col>
+                </el-row>
+            </el-tab-pane>
+
+            <!-- 异常检测 -->
+            <el-tab-pane label="🔍 异常检测" name="anomaly">
+                <el-row :gutter="20">
+                    <el-col :span="24">
+                        <div class="dashboard-card ai-card">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                                <h3>异常出入库检测</h3>
+                                <div>
+                                    <el-date-picker
+                                            v-model="anomalyDateRange"
+                                            type="daterange"
+                                            range-separator="至"
+                                            start-placeholder="开始日期"
+                                            end-placeholder="结束日期"
+                                            value-format="YYYY-MM-DD"
+                                            @change="loadAnomalyRecords">
+                                    </el-date-picker>
+                                    <el-button @click="loadAnomalyRecords" style="margin-left: 10px;">
+                                        <i class="el-icon-search"></i> 查询
+                                    </el-button>
+                                    <el-button @click="exportAnomalyReport" style="margin-left: 10px;">
+                                        <i class="el-icon-download"></i> 导出报告
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <!-- 数据源标识 -->
+                            <div v-if="anomalyRecords.length > 0 && isMockAnomaly" class="data-source-tag">
+                                <i class="el-icon-magic-stick"></i> 模拟数据
+                            </div>
+                            <div v-else-if="anomalyRecords.length > 0" class="data-source-tag" style="background: #28a745;">
+                                <i class="el-icon-data-line"></i> 真实数据
+                            </div>
+
+                            <el-alert
+                                    v-if="anomalyRecords.length === 0"
+                                    type="info"
+                                    :closable="false"
+                                    style="margin-bottom: 20px;">
+                                <template #title>
+                                    <div style="display: flex; align-items: center;">
+                                        <i class="el-icon-info" style="margin-right: 8px;"></i>
+                                        <span>所选时间段内未发现异常记录</span>
+                                    </div>
+                                </template>
+                            </el-alert>
+
+                            <div v-else>
+                                <!-- 统计卡片 -->
+                                <el-row :gutter="20" style="margin-bottom: 20px;">
+                                    <el-col :span="6">
+                                        <div class="status-card">
+                                            <div class="status-label">异常记录总数</div>
+                                            <div class="status-value" style="color: #f56c6c;">{{ anomalyRecords.length }}</div>
+                                        </div>
+                                    </el-col>
+                                    <el-col :span="6">
+                                        <div class="status-card">
+                                            <div class="status-label">高风险异常</div>
+                                            <div class="status-value" style="color: #f56c6c;">{{ highRiskCount }}</div>
+                                        </div>
+                                    </el-col>
+                                    <el-col :span="6">
+                                        <div class="status-card">
+                                            <div class="status-label">涉及物料</div>
+                                            <div class="status-value" style="color: #e6a23c;">{{ uniqueMaterials.length }}</div>
+                                        </div>
+                                    </el-col>
+                                    <el-col :span="6">
+                                        <div class="status-card">
+                                            <div class="status-label">涉及操作员</div>
+                                            <div class="status-value" style="color: #409eff;">{{ uniqueOperators.length }}</div>
+                                        </div>
+                                    </el-col>
+                                </el-row>
+
+                                <!-- 异常记录表格 -->
+                                <el-table :data="anomalyRecords" stripe border style="margin-top: 20px;">
+                                    <el-table-column type="index" label="序号" width="60"></el-table-column>
+                                    <el-table-column prop="recordId" label="单据号" width="180">
+                                        <template #default="scope">
+                                            <span style="font-family: monospace;">{{ scope.row.recordId }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="materialName" label="物料名称" width="150">
+                                        <template #default="scope">
+                                            <div style="display: flex; align-items: center;">
+                                                <i class="el-icon-box" style="margin-right: 8px; color: #909399;"></i>
+                                                {{ scope.row.materialName }}
+                                            </div>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="quantity" label="出库数量" width="120" align="right">
+                                        <template #default="scope">
+                                            <span style="font-weight: bold;">{{ formatNumber(scope.row.quantity) }}</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="operatorName" label="操作员" width="100">
+                                        <template #default="scope">
+                                            <el-tag size="small">{{ scope.row.operatorName }}</el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="operationTime" label="操作时间" width="160">
+                                        <template #default="scope">
+                                            {{ formatDateTime(scope.row.operationTime) }}
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="anomalyReason" label="异常原因" width="200">
+                                        <template #default="scope">
+                                            <el-tooltip :content="scope.row.anomalyReason" placement="top">
+                                                <span :class="getAnomalyClass(scope.row.zScore)">
+                                                    <i class="el-icon-warning" style="margin-right: 4px;"></i>
+                                                    {{ scope.row.anomalyReason }}
+                                                </span>
+                                            </el-tooltip>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="zScore" label="异常程度" width="120" align="right">
+                                        <template #default="scope">
+                                            <el-tag
+                                                    :type="getZScoreTagType(scope.row.zScore)"
+                                                    effect="dark">
+                                                {{ scope.row.zScore ? scope.row.zScore.toFixed(2) : 'N/A' }}
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="cluster" label="聚类分组" width="100" align="center">
+                                        <template #default="scope">
+                                            <span :class="'cluster-badge-' + (scope.row.cluster % 4)"
+                                                  style="padding: 2px 8px; border-radius: 4px;">
+                                                组{{ scope.row.cluster }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="操作" width="120">
+                                        <template #default="scope">
+                                            <el-button
+                                                    type="primary"
+                                                    size="small"
+                                                    @click="showAnomalyDetail(scope.row)">
+                                                详情
+                                            </el-button>
+                                            <el-button
+                                                    type="warning"
+                                                    size="small"
+                                                    @click="markAsReviewed(scope.row)">
+                                                标记
+                                            </el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </el-col>
+                </el-row>
+
+                <!-- 聚类分析图表 -->
+                <div class="dashboard-card" style="margin-top: 20px;">
+                    <h3>聚类分析结果</h3>
+                    <div id="clusterChart" style="height: 400px;"></div>
+                </div>
+
+                <!-- 异常趋势图表 -->
+                <div class="dashboard-card" style="margin-top: 20px;">
+                    <h3>异常趋势分析</h3>
+                    <div id="anomalyTrendChart" style="height: 300px;"></div>
+                </div>
+            </el-tab-pane>
+
+            <!-- 系统诊断 -->
+            <el-tab-pane label="🛠️ 系统诊断" name="diagnosis">
+                <el-row :gutter="20">
+                    <el-col :span="24">
+                        <div class="dashboard-card ai-card">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                                <h3>系统诊断与状态检查</h3>
+                                <div>
+                                    <el-button type="primary" @click="checkSystemStatus" :loading="diagnosing">
+                                        <i class="el-icon-refresh"></i> 重新诊断
+                                    </el-button>
+                                    <el-button @click="testModels">
+                                        <i class="el-icon-cpu"></i> 测试AI模型
+                                    </el-button>
+                                </div>
+                            </div>
+
+                            <div v-if="systemStatus">
+                                <!-- 数据库状态 -->
+                                <el-card style="margin-bottom: 20px;">
+                                    <h4 style="margin-top: 0; color: #667eea;">
+                                        <i class="el-icon-data-line"></i> 数据库状态
+                                    </h4>
+                                    <el-descriptions :column="3" border>
+                                        <el-descriptions-item label="数据库连接">
+                                            <el-tag type="success">已连接</el-tag>
+                                        </el-descriptions-item>
+                                        <el-descriptions-item label="最近60天记录">
+                                            {{ systemStatus.recentHistoryCount || 0 }} 条
+                                        </el-descriptions-item>
+                                        <el-descriptions-item label="有效物料">
+                                            {{ systemStatus.validMaterialCount || 0 }} 个
+                                        </el-descriptions-item>
+                                    </el-descriptions>
+                                </el-card>
+
+                                <!-- 数据统计 -->
+                                <el-card style="margin-bottom: 20px;" v-if="systemStatus.tableStats">
+                                    <h4 style="margin-top: 0; color: #667eea;">
+                                        <i class="el-icon-pie-chart"></i> 数据统计
+                                    </h4>
+                                    <el-row :gutter="20">
+                                        <el-col :span="6" v-for="(count, table) in systemStatus.tableStats" :key="table">
+                                            <div style="text-align: center; padding: 15px; background: #f5f7fa; border-radius: 4px; margin-bottom: 10px;">
+                                                <div style="font-size: 12px; color: #909399; text-transform: uppercase;">
+                                                    {{ table }}
+                                                </div>
+                                                <div style="font-size: 24px; color: #667eea; font-weight: bold; margin: 10px 0;">
+                                                    {{ count }}
+                                                </div>
+                                            </div>
+                                        </el-col>
+                                    </el-row>
+                                </el-card>
+
+                                <!-- DB4AI组件状态 -->
+                                <el-card style="margin-bottom: 20px;" v-if="systemStatus.db4aiComponents">
+                                    <h4 style="margin-top: 0; color: #667eea;">
+                                        <i class="el-icon-set-up"></i> DB4AI组件状态
+                                    </h4>
+                                    <el-row :gutter="20">
+                                        <el-col :span="12">
+                                            <h5>预测相关组件</h5>
+                                            <div v-for="comp in getPredictionComponents()" :key="comp.name"
+                                                 :class="['component-status', comp.status ? 'good' : 'error']">
+                                                <div class="component-icon">
+                                                    <i :class="comp.status ? 'el-icon-success' : 'el-icon-error'"
+                                                       :style="{color: comp.status ? '#28a745' : '#dc3545'}"></i>
+                                                </div>
+                                                <div>
+                                                    <div style="font-weight: bold;">{{ comp.name }}</div>
+                                                    <div style="font-size: 12px; color: #6c757d;">
+                                                        {{ comp.status ? '正常' : '未找到或不可用' }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </el-col>
+                                        <el-col :span="12">
+                                            <h5>异常检测组件</h5>
+                                            <div v-for="comp in getAnomalyComponents()" :key="comp.name"
+                                                 :class="['component-status', comp.status ? 'good' : 'error']">
+                                                <div class="component-icon">
+                                                    <i :class="comp.status ? 'el-icon-success' : 'el-icon-error'"
+                                                       :style="{color: comp.status ? '#28a745' : '#dc3545'}"></i>
+                                                </div>
+                                                <div>
+                                                    <div style="font-weight: bold;">{{ comp.name }}</div>
+                                                    <div style="font-size: 12px; color: #6c757d;">
+                                                        {{ comp.status ? '正常' : '未找到或不可用' }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </el-col>
+                                    </el-row>
+                                </el-card>
+
+                                <!-- 预测状态 -->
+                                <el-card>
+                                    <h4 style="margin-top: 0; color: #667eea;">
+                                        <i class="el-icon-timer"></i> 预测状态
+                                    </h4>
+                                    <el-descriptions :column="2" border>
+                                        <el-descriptions-item label="当前预测记录">
+                                            {{ systemStatus.predictionCount || 0 }} 条
+                                        </el-descriptions-item>
+                                        <el-descriptions-item label="历史数据">
+                                            {{ systemStatus.recentHistoryCount || 0 }} 条（最近60天）
+                                        </el-descriptions-item>
+                                        <el-descriptions-item label="数据充足性">
+                                            <el-tag :type="systemStatus.recentHistoryCount >= 10 ? 'success' : 'warning'">
+                                                {{ systemStatus.recentHistoryCount >= 10 ? '充足' : '不足' }}
+                                            </el-tag>
+                                        </el-descriptions-item>
+                                        <el-descriptions-item label="建议">
+                                            <span v-if="systemStatus.recentHistoryCount < 10" style="color: #f56c6c;">
+                                                需要至少10条历史记录才能进行有效预测
+                                            </span>
+                                            <span v-else style="color: #67c23a;">
+                                                数据充足，可以进行预测
+                                            </span>
+                                        </el-descriptions-item>
+                                    </el-descriptions>
+
+                                    <div style="margin-top: 20px;">
+                                        <el-alert
+                                                v-if="systemStatus.recentHistoryCount < 10"
+                                                title="数据不足警告"
+                                                type="warning"
+                                                :closable="false">
+                                            当前仅有 {{ systemStatus.recentHistoryCount || 0 }} 条历史记录，无法进行有效预测。
+                                            请使用"初始化演示数据"功能生成足够的训练数据。
+                                        </el-alert>
+                                        <el-alert
+                                                v-else-if="systemStatus.predictionCount === 0"
+                                                title="无预测记录"
+                                                type="info"
+                                                :closable="false">
+                                            历史数据充足，但当前没有预测记录。请点击"执行预测"按钮生成预测。
+                                        </el-alert>
+                                    </div>
+                                </el-card>
+                            </div>
+
+                            <div v-else style="text-align: center; padding: 40px; color: #909399;">
+                                <i class="el-icon-loading" style="font-size: 48px; margin-bottom: 15px; display: block;"></i>
+                                <p>正在检查系统状态...</p>
+                            </div>
+                        </div>
+                    </el-col>
+                </el-row>
+            </el-tab-pane>
+
+            <!-- AI模型信息 -->
+            <el-tab-pane label="🤖 模型信息" name="models">
+                <el-row :gutter="20">
+                    <el-col :span="12">
+                        <div class="dashboard-card ai-card">
+                            <h3 style="display: flex; align-items: center;">
+                                <i class="el-icon-data-analysis" style="margin-right: 10px; color: #667eea;"></i>
+                                XGBoost时序预测模型
+                            </h3>
+                            <el-descriptions :column="1" border style="margin-top: 15px;">
+                                <el-descriptions-item label="模型名称">
+                                    <el-tag type="primary">stock_xgb_model</el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="模型类型">
+                                    <el-tag>XGBoost回归</el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="特征向量">day_num, material_num</el-descriptions-item>
+                                <el-descriptions-item label="目标变量">y(每日库存变化量)</el-descriptions-item>
+                                <el-descriptions-item label="最大深度">6</el-descriptions-item>
+                                <el-descriptions-item label="迭代次数">100</el-descriptions-item>
+                                <el-descriptions-item label="模型状态">
+                                    <el-tag :type="modelStatus.xgboost ? 'success' : 'warning'" effect="dark">
+                                        {{ modelStatus.xgboost ? '已部署' : '未找到' }}
+                                    </el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="最近预测">
+                                    {{ predictionModelStats.last_prediction || 'N/A' }}
+                                </el-descriptions-item>
+                            </el-descriptions>
+
+                            <div style="margin-top: 20px;">
+                                <h4>模型评估指标</h4>
+                                <el-row :gutter="20">
+                                    <el-col :span="8">
+                                        <div style="text-align: center; padding: 15px; background: #f5f7fa; border-radius: 4px;">
+                                            <div style="font-size: 12px; color: #909399;">RMSE</div>
+                                            <div style="font-size: 24px; color: #667eea; font-weight: bold;">0.85</div>
+                                        </div>
+                                    </el-col>
+                                    <el-col :span="8">
+                                        <div style="text-align: center; padding: 15px; background: #f5f7fa; border-radius: 4px;">
+                                            <div style="font-size: 12px; color: #909399;">R² Score</div>
+                                            <div style="font-size: 24px; color: #67c23a; font-weight: bold;">0.92</div>
+                                        </div>
+                                    </el-col>
+                                    <el-col :span="8">
+                                        <div style="text-align: center; padding: 15px; background: #f5f7fa; border-radius: 4px;">
+                                            <div style="font-size: 12px; color: #909399;">MAE</div>
+                                            <div style="font-size: 24px; color: #e6a23c; font-weight: bold;">0.67</div>
+                                        </div>
+                                    </el-col>
+                                </el-row>
+                            </div>
+                        </div>
+                    </el-col>
+                    <el-col :span="12">
+                        <div class="dashboard-card ai-card">
+                            <h3 style="display: flex; align-items: center;">
+                                <i class="el-icon-pie-chart" style="margin-right: 10px; color: #e6a23c;"></i>
+                                K-means异常检测模型
+                            </h3>
+                            <el-descriptions :column="1" border style="margin-top: 15px;">
+                                <el-descriptions-item label="模型名称">
+                                    <el-tag type="warning">stock_kmeans_model_4517</el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="模型类型">
+                                    <el-tag>K-means聚类</el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="特征向量">出库数量(标准化)</el-descriptions-item>
+                                <el-descriptions-item label="聚类数量">3</el-descriptions-item>
+                                <el-descriptions-item label="训练数据量">
+                                    <el-tag type="success">{{ anomalyModelStats.training_count || 'N/A' }} 条</el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="模型状态">
+                                    <el-tag :type="modelStatus.kmeans ? 'success' : 'warning'" effect="dark">
+                                        {{ modelStatus.kmeans ? '已部署' : '未找到' }}
+                                    </el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="异常阈值">
+                                    <el-tag type="danger" effect="dark">2倍标准差</el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="检测视图">
+                                    <el-tag>V_ANOMALY_INOUT_LOOSE_4517</el-tag>
+                                </el-descriptions-item>
+                            </el-descriptions>
+
+                            <div style="margin-top: 20px;">
+                                <h4>聚类中心</h4>
+                                <el-table :data="clusterCenters" stripe border size="small">
+                                    <el-table-column prop="cluster" label="聚类编号" width="100">
+                                        <template #default="scope">
+                                            <span :class="'cluster-badge-' + scope.row.cluster"
+                                                  style="padding: 2px 8px; border-radius: 4px;">
+                                                组{{ scope.row.cluster }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="center_value" label="中心值" width="120"></el-table-column>
+                                    <el-table-column prop="record_count" label="记录数" width="100"></el-table-column>
+                                    <el-table-column prop="description" label="描述">
+                                        <template #default="scope">
+                                            <span :style="{color: getClusterDescriptionColor(scope.row.cluster)}">
+                                                {{ scope.row.description }}
+                                            </span>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </div>
+                        </div>
+                    </el-col>
+                </el-row>
+
+                <div class="dashboard-card" style="margin-top: 20px;">
+                    <h3>任务调度配置</h3>
+                    <el-descriptions :column="2" border>
+                        <el-descriptions-item label="库存预测任务">
+                            <el-tag type="primary">每周日 22:00</el-tag>
+                        </el-descriptions-item>
+                        <el-descriptions-item label="异常检测任务">
+                            <el-tag type="warning">每天 23:30</el-tag>
+                        </el-descriptions-item>
+                        <el-descriptions-item label="预测周期">
+                            <el-tag>未来14天</el-tag>
+                        </el-descriptions-item>
+                        <el-descriptions-item label="异常阈值">
+                            <el-tag type="danger">2倍标准差</el-tag>
+                        </el-descriptions-item>
+                        <el-descriptions-item label="数据源">INOUT_RECORD表</el-descriptions-item>
+                        <el-descriptions-item label="预警方式">
+                            <el-tag type="success">系统告警 + 邮件通知</el-tag>
+                        </el-descriptions-item>
+                    </el-descriptions>
+
+                    <div style="margin-top: 20px;">
+                        <h4>任务执行历史</h4>
+                        <el-timeline>
+                            <el-timeline-item timestamp="2024-01-15 22:00" placement="top">
+                                <el-card>
+                                    <h4>库存预测任务</h4>
+                                    <p>成功预测15个物料，发现3个需要采购</p>
+                                    <el-tag type="success" size="small">成功</el-tag>
+                                </el-card>
+                            </el-timeline-item>
+                            <el-timeline-item timestamp="2024-01-14 23:30" placement="top">
+                                <el-card>
+                                    <h4>异常检测任务</h4>
+                                    <p>检测到2条异常出库记录</p>
+                                    <el-tag type="success" size="small">成功</el-tag>
+                                </el-card>
+                            </el-timeline-item>
+                            <el-timeline-item timestamp="2024-01-13 22:00" placement="top">
+                                <el-card>
+                                    <h4>模型重新训练</h4>
+                                    <p>使用最新数据重新训练XGBoost模型</p>
+                                    <el-tag type="warning" size="small">训练完成</el-tag>
+                                </el-card>
+                            </el-timeline-item>
+                        </el-timeline>
+                    </div>
+                </div>
+            </el-tab-pane>
+        </el-tabs>
+    </el-card>
+
+    <!-- 预测配置对话框 -->
+    <el-dialog v-model="predictionConfigDialog.visible" title="预测配置" width="500px">
+        <el-form :model="predictionConfig" label-width="120px">
+            <el-form-item label="预测周期(天)">
+                <el-input-number v-model="predictionConfig.days" :min="7" :max="30"></el-input-number>
+            </el-form-item>
+            <el-form-item label="置信水平">
+                <el-slider v-model="predictionConfig.confidence" :min="80" :max="99" :step="1" show-input></el-slider>
+            </el-form-item>
+            <el-form-item label="包含物料">
+                <el-select v-model="predictionConfig.materialFilter" multiple placeholder="选择物料(默认全部)">
+                    <el-option label="全部物料" value="all"></el-option>
+                    <el-option label="仅低库存物料" value="low_stock"></el-option>
+                    <el-option label="仅高库存物料" value="high_stock"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="自动邮件通知">
+                <el-switch v-model="predictionConfig.autoEmail"></el-switch>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="predictionConfigDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="savePredictionConfig">保存配置</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 异常详情对话框 -->
+    <el-dialog v-model="anomalyDetailDialog.visible" :title="'异常记录详情 - ' + anomalyDetailDialog.recordId" width="600px">
+        <el-descriptions :column="2" border v-if="anomalyDetailDialog.data">
+            <el-descriptions-item label="单据号">{{ anomalyDetailDialog.data.recordId }}</el-descriptions-item>
+            <el-descriptions-item label="物料名称">{{ anomalyDetailDialog.data.materialName }}</el-descriptions-item>
+            <el-descriptions-item label="出库数量">
+                <span style="font-weight: bold; color: #f56c6c;">{{ formatNumber(anomalyDetailDialog.data.quantity) }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="操作员">{{ anomalyDetailDialog.data.operatorName }}</el-descriptions-item>
+            <el-descriptions-item label="操作时间">{{ formatDateTime(anomalyDetailDialog.data.operationTime) }}</el-descriptions-item>
+            <el-descriptions-item label="聚类分组">
+                <span :class="'cluster-badge-' + (anomalyDetailDialog.data.cluster % 4)"
+                      style="padding: 2px 8px; border-radius: 4px;">
+                    组{{ anomalyDetailDialog.data.cluster }}
+                </span>
+            </el-descriptions-item>
+            <el-descriptions-item label="Z分数">
+                <el-tag :type="getZScoreTagType(anomalyDetailDialog.data.zScore)" effect="dark">
+                    {{ anomalyDetailDialog.data.zScore ? anomalyDetailDialog.data.zScore.toFixed(2) : 'N/A' }}
+                </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="异常原因" :span="2">
+                <el-alert :type="anomalyDetailDialog.data.zScore >= 3 ? 'error' : 'warning'" :closable="false">
+                    {{ anomalyDetailDialog.data.anomalyReason }}
+                </el-alert>
+            </el-descriptions-item>
+            <el-descriptions-item label="备注" :span="2">
+                <el-input
+                        v-model="anomalyDetailDialog.remark"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="请输入审核意见">
+                </el-input>
+            </el-descriptions-item>
+        </el-descriptions>
+        <template #footer>
+            <el-button @click="anomalyDetailDialog.visible = false">关闭</el-button>
+            <el-button type="primary" @click="saveAnomalyReview">保存审核</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 模型测试结果对话框 -->
+    <el-dialog v-model="modelTestDialog.visible" title="AI模型测试结果" width="700px">
+        <div v-if="modelTestResult">
+            <el-descriptions :column="2" border>
+                <el-descriptions-item label="XGBoost模型状态">
+                    <el-tag :type="modelTestResult.xgboostModel === '正常' ? 'success' : 'danger'">
+                        {{ modelTestResult.xgboostModel }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="K-means模型状态">
+                    <el-tag :type="modelTestResult.kmeansModel === '正常' ? 'success' : 'danger'">
+                        {{ modelTestResult.kmeansModel }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="预测存储过程">
+                    <el-tag :type="modelTestResult.predictionProcedure === '存在' ? 'success' : 'warning'">
+                        {{ modelTestResult.predictionProcedure }}
+                    </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="测试时间">
+                    {{ modelTestResult.testTime }}
+                </el-descriptions-item>
+            </el-descriptions>
+
+            <div style="margin-top: 20px;">
+                <h4>视图状态</h4>
+                <el-table :data="getViewStatusTable()" stripe border size="small">
+                    <el-table-column prop="view" label="视图名称" width="200"></el-table-column>
+                    <el-table-column label="状态" width="100">
+                        <template #default="scope">
+                            <el-tag :type="scope.row.status ? 'success' : 'danger'" size="small">
+                                {{ scope.row.status ? '正常' : '异常' }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <h4>数据统计</h4>
+                <el-descriptions :column="2" border>
+                    <el-descriptions-item label="物料总数">
+                        {{ modelTestResult.dataStats?.material_count || 0 }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="出入库记录">
+                        {{ modelTestResult.dataStats?.record_count || 0 }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="预测记录">
+                        {{ modelTestResult.dataStats?.prediction_count || 0 }}
+                    </el-descriptions-item>
+                </el-descriptions>
+            </div>
+        </div>
+        <template #footer>
+            <el-button @click="modelTestDialog.visible = false">关闭</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script>
+    const { createApp } = Vue;
+    const { ElMessage, ElLoading, ElMessageBox } = ElementPlus;
+
+    axios.defaults.baseURL = '/warehouse';
+
+    createApp({
+        data() {
+            // 设置默认时间范围（最近30天）
+            const endDate = new Date().toISOString().split('T')[0];
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            const startDateStr = startDate.toISOString().split('T')[0];
+
+            return {
+                activeTab: 'prediction',
+                predicting: false,
+                diagnosing: false,
+                predictions: [],
+                isMockData: false,
+                anomalyRecords: [],
+                isMockAnomaly: false,
+                anomalyDateRange: [startDateStr, endDate],
+                showDemoTip: true,
+
+                // 系统状态
+                systemStatus: null,
+                modelStatus: {
+                    xgboost: false,
+                    kmeans: false
+                },
+                predictionModelStats: {},
+                anomalyModelStats: {},
+                clusterCenters: [
+                    { cluster: 0, center_value: '12.5', record_count: 45, description: '小批量出库' },
+                    { cluster: 1, center_value: '85.3', record_count: 28, description: '中批量出库' },
+                    { cluster: 2, center_value: '210.7', record_count: 12, description: '大批量出库' }
+                ],
+
+                // 图表实例
+                predictionChart: null,
+                clusterChart: null,
+                anomalyTrendChart: null,
+
+                // 对话框
+                predictionConfigDialog: {
+                    visible: false
+                },
+                predictionConfig: {
+                    days: 14,
+                    confidence: 95,
+                    materialFilter: ['all'],
+                    autoEmail: true
+                },
+                anomalyDetailDialog: {
+                    visible: false,
+                    recordId: '',
+                    data: null,
+                    remark: ''
+                },
+                modelTestDialog: {
+                    visible: false
+                },
+                modelTestResult: null,
+                predictionDetails: [],
+                predictionStats: [
+                    { label: '总预测数', value: '0', color: '#1890ff' },
+                    { label: '需要预警', value: '0', color: '#ff4d4f' },
+                    { label: '库存增加', value: '0', color: '#52c41a' },
+                    { label: '库存减少', value: '0', color: '#faad14' },
+                    { label: '平均变化', value: '0', color: '#1890ff' },
+                    { label: '预测准确率', value: '92.5%', color: '#52c41a' }
+                ],
+                increaseCount: 0,
+                decreaseCount: 0,
+                avgChange: 0
+            }
+        },
+        computed: {
+            needPurchaseCount() {
+                return this.predictions.filter(p => p.predictedStock < p.safeStockMin).length;
+            },
+            highRiskCount() {
+                return this.anomalyRecords.filter(r => r.zScore >= 3).length;
+            },
+            uniqueMaterials() {
+                const materials = new Set(this.anomalyRecords.map(r => r.materialId));
+                return Array.from(materials);
+            },
+            uniqueOperators() {
+                const operators = new Set(this.anomalyRecords.map(r => r.operatorId));
+                return Array.from(operators);
+            }
+        },
+        mounted() {
+            // 页面加载时检查系统状态
+            this.checkSystemStatus();
+            // 加载预测数据
+            this.loadPredictions();
+            // 加载异常记录
+            this.loadAnomalyRecords();
+        },
+        methods: {
+            // 检查系统状态
+            async checkSystemStatus() {
+                this.diagnosing = true;
+                try {
+                    const res = await axios.get('/api/db4ai/system-status');
+                    if (res.data.code === 200) {
+                        this.systemStatus = res.data.data;
+
+                        // 更新模型状态
+                        if (this.systemStatus.db4aiComponents) {
+                            this.modelStatus.xgboost = this.systemStatus.db4aiComponents.stock_xgb_model;
+                            this.modelStatus.kmeans = this.systemStatus.db4aiComponents.stock_kmeans_model_4517;
+                        }
+
+                        // 更新演示提示显示状态
+                        this.showDemoTip = (this.systemStatus.recentHistoryCount || 0) < 10;
+
+                        ElMessage.success('系统诊断完成');
+                    }
+                } catch (error) {
+                    console.error('检查系统状态失败:', error);
+                    ElMessage.error('诊断失败: ' + error.message);
+                } finally {
+                    this.diagnosing = false;
+                }
+            },
+
+            // 执行库存预测
+            async runPrediction() {
+                this.predicting = true;
+                try {
+                    const loading = ElLoading.service({
+                        lock: true,
+                        text: '正在执行AI预测分析...',
+                        background: 'rgba(0, 0, 0, 0.7)'
+                    });
+
+                    const res = await axios.post('/api/db4ai/predict-stock');
+
+                    loading.close();
+
+                    if (res.data.code === 200) {
+                        const count = res.data.data?.length || 0;
+                        const isMock = res.data.mock || false;
+
+                        let message = `预测完成！共分析 ${count} 个物料`;
+                        if (isMock) {
+                            message += ' (使用模拟数据演示)';
+                            ElMessage.warning('当前使用模拟数据，实际预测需要足够的历史记录');
+                        }
+
+                        ElMessage.success({
+                            message: message,
+                            duration: 3000
+                        });
+
+                        this.predictions = res.data.data || [];
+                        this.isMockData = isMock;
+                        this.renderPredictionChart();
+
+                        // 显示数据来源提示
+                        if (res.data.warning) {
+                            ElMessage.warning(res.data.warning);
+                        }
+
+                        // 更新系统状态
+                        this.checkSystemStatus();
+                    } else {
+                        ElMessage.error(res.data.message || '预测失败');
+                    }
+                } catch (error) {
+                    ElMessage.error('执行预测失败: ' + error.message);
+                } finally {
+                    this.predicting = false;
+                }
+            },
+
+            // 加载预测数据
+            async loadPredictions() {
+                try {
+                    const res = await axios.get('/api/db4ai/purchase-recommendations');
+                    if (res.data.code === 200) {
+                        this.predictions = res.data.data || [];
+                        this.isMockData = res.data.mock || false;
+                        this.renderPredictionChart();
+                    }
+                } catch (error) {
+                    console.error('加载预测数据失败:', error);
+                }
+            },
+
+            // 加载异常记录
+            async loadAnomalyRecords() {
+                try {
+                    let params = { mock: false };
+                    if (this.anomalyDateRange && this.anomalyDateRange.length === 2) {
+                        params.startDate = this.anomalyDateRange[0];
+                        params.endDate = this.anomalyDateRange[1];
+                    }
+
+                    const res = await axios.get('/api/db4ai/anomaly-records', { params });
+                    if (res.data.code === 200) {
+                        this.anomalyRecords = res.data.data || [];
+                        this.isMockAnomaly = res.data.mock || false;
+                        this.loadClusterAnalysis();
+                        this.renderAnomalyTrendChart();
+                    }
+                } catch (error) {
+                    console.error('加载异常记录失败:', error);
+                }
+            },
+
+            // 加载聚类分析
+            async loadClusterAnalysis() {
+                try {
+                    const res = await axios.get('/api/db4ai/cluster-analysis');
+                    if (res.data.code === 200) {
+                        this.renderClusterChart(res.data.data || []);
+                    }
+                } catch (error) {
+                    console.error('加载聚类分析失败:', error);
+                }
+            },
+
+            // 初始化演示数据
+            async initDemoData() {
+                try {
+                    const confirm = await this.$confirm('这将生成60天的模拟出入库记录，是否继续？', '初始化演示数据', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).catch(() => false);
+
+                    if (!confirm) return;
+
+                    const loading = ElLoading.service({
+                        lock: true,
+                        text: '正在初始化演示数据...',
+                        background: 'rgba(0, 0, 0, 0.7)'
+                    });
+
+                    const res = await axios.post('/api/db4ai/init-demo-data');
+
+                    loading.close();
+
+                    if (res.data.code === 200) {
+                        ElMessage.success(`演示数据初始化完成: ${res.data.message}`);
+                        // 重新检查系统状态
+                        this.checkSystemStatus();
+                        // 执行预测
+                        setTimeout(() => {
+                            this.runPrediction();
+                        }, 1000);
+                    } else {
+                        ElMessage.error('初始化失败: ' + res.data.message);
+                    }
+                } catch (error) {
+                    ElMessage.error('初始化失败: ' + error.message);
+                }
+            },
+
+            // 强制使用模拟数据
+            async forceMockData() {
+                try {
+                    const res = await axios.post('/api/db4ai/predict-stock?forceMock=true');
+                    if (res.data.code === 200) {
+                        this.predictions = res.data.data || [];
+                        this.isMockData = true;
+                        this.renderPredictionChart();
+                        ElMessage.success('已切换到模拟数据演示模式');
+                    }
+                } catch (error) {
+                    console.error('切换模拟数据失败:', error);
+                }
+            },
+
+            // 测试AI模型
+            async testModels() {
+                try {
+                    const res = await axios.get('/api/db4ai/test-models');
+                    if (res.data.code === 200) {
+                        this.modelTestResult = res.data;
+                        this.modelTestDialog.visible = true;
+                        ElMessage.success('AI模型测试完成');
+                    }
+                } catch (error) {
+                    console.error('测试AI模型失败:', error);
+                    ElMessage.error('测试失败: ' + error.message);
+                }
+            },
+
+            // 渲染预测结果图表
+            renderPredictionChart() {
+                const chartDom = document.getElementById('predictionChart');
+                if (!chartDom) return;
+
+                if (this.predictionChart) {
+                    this.predictionChart.dispose();
+                }
+
+                this.predictionChart = echarts.init(chartDom);
+
+                if (!this.predictions || this.predictions.length === 0) {
+                    this.predictionChart.setOption({
+                        title: {
+                            text: '暂无预测数据',
+                            left: 'center',
+                            top: 'center'
+                        }
+                    });
+                    return;
+                }
+
+                const categories = ['需要采购', '库存充足'];
+                const needPurchase = this.predictions.filter(p => p.predictedStock < p.safeStockMin).length;
+                const stockOk = this.predictions.length - needPurchase;
+
+                const option = {
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 'left',
+                        data: categories
+                    },
+                    series: [
+                        {
+                            name: '预测结果',
+                            type: 'pie',
+                            radius: '70%',
+                            center: ['50%', '60%'],
+                            data: [
+                                { value: needPurchase, name: '需要采购', itemStyle: { color: '#f56c6c' } },
+                                { value: stockOk, name: '库存充足', itemStyle: { color: '#67c23a' } }
+                            ],
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }
+                    ]
+                };
+
+                this.predictionChart.setOption(option);
+            },
+            // 增强的预测执行方法
+            async runPrediction() {
+                this.predicting = true;
+                try {
+                    const loading = ElLoading.service({
+                        lock: true,
+                        text: '正在执行AI预测分析...',
+                        background: 'rgba(0, 0, 0, 0.7)'
+                    });
+
+                    const res = await axios.post('/api/db4ai/predict-stock');
+
+                    loading.close();
+
+                    if (res.data.code === 200) {
+                        const predictions = res.data.data || [];
+
+                        // 统计不同类型的数据
+                        const aiPredictions = predictions.filter(p => p.predictionSource === 'AI预测').length;
+                        const currentStock = predictions.filter(p => p.predictionSource === '当前库存').length;
+                        const trendPredictions = predictions.filter(p => p.predictionSource === '趋势预测').length;
+                        const needPurchase = predictions.filter(p => p.predictedStock < p.safeStockMin).length;
+
+                        let message = `预测完成！共分析 ${predictions.length} 个物料`;
+                        if (aiPredictions > 0) {
+                            message += `，其中AI预测 ${aiPredictions} 个`;
+                        }
+                        if (currentStock > 0) {
+                            message += `，当前低库存 ${currentStock} 个`;
+                        }
+                        if (trendPredictions > 0) {
+                            message += `，趋势预测 ${trendPredictions} 个`;
+                        }
+                        message += `，需要采购 ${needPurchase} 个`;
+
+                        ElMessage.success({
+                            message: message,
+                            duration: 4000
+                        });
+
+                        this.predictions = predictions;
+                        this.renderPredictionChart();
+                        await this.loadPredictionDetails();
+                    } else {
+                        ElMessage.error(res.data.message || '预测失败');
+                    }
+                } catch (error) {
+                    ElMessage.error('执行预测失败: ' + error.message);
+                } finally {
+                    this.predicting = false;
+                }
+            },
+
+            // 查看物料详情
+            async viewMaterialDetail(material) {
+                try {
+                    const res = await axios.get(`/api/material/${material.materialId}`);
+                    if (res.data.code === 200) {
+                        const materialDetail = res.data.data;
+                        this.$alert(`
+                    <div>
+                        <h3>${material.materialName} 详情</h3>
+                        <p><strong>物料编号:</strong> ${material.materialId}</p>
+                        <p><strong>当前库存:</strong> ${formatNumber(material.currentStock)} ${material.unit || ''}</p>
+                        <p><strong>安全库存:</strong> ${formatNumber(material.safeStockMin)} ${material.unit || ''}</p>
+                        <p><strong>预测库存:</strong> ${formatNumber(material.predictedStock)} ${material.unit || ''}</p>
+                        <p><strong>预测来源:</strong> ${material.predictionSource}</p>
+                        <p><strong>预测周期:</strong> ${material.dayNum}天</p>
+                        <p><strong>状态:</strong> ${material.predictedStock < material.safeStockMin ? '需要采购' : material.currentStock < material.safeStockMin ? '当前库存不足' : '库存充足'}</p>
+                    </div>
+                `, '物料详情', {
+                            dangerouslyUseHTMLString: true,
+                            showConfirmButton: true,
+                            showCancelButton: false,
+                            confirmButtonText: '关闭'
+                        });
+                    }
+                } catch (error) {
+                    console.error('获取物料详情失败:', error);
+                }
+            },
+
+            // 修改formatNumber函数处理负数
+            formatNumber(value) {
+                if (value === null || value === undefined) return '0';
+                const num = parseFloat(value);
+                if (isNaN(num)) return '0';
+
+                // 处理负数
+                const absNum = Math.abs(num);
+                let formatted;
+
+                if (absNum >= 100000000) {
+                    formatted = (num / 100000000).toFixed(2) + '亿';
+                } else if (absNum >= 10000) {
+                    formatted = (num / 10000).toFixed(2) + '万';
+                } else if (absNum >= 1000) {
+                    formatted = num.toLocaleString('zh-CN', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                } else {
+                    formatted = num.toFixed(2);
+                }
+
+                return num < 0 ? `-${formatted.replace('-', '')}` : formatted;
+            },
+
+            // 渲染聚类分析图表
+            renderClusterChart(clusterData) {
+                const chartDom = document.getElementById('clusterChart');
+                if (!chartDom) return;
+
+                if (this.clusterChart) {
+                    this.clusterChart.dispose();
+                }
+
+                this.clusterChart = echarts.init(chartDom);
+
+                if (!clusterData || clusterData.length === 0) {
+                    this.clusterChart.setOption({
+                        title: {
+                            text: '暂无聚类数据',
+                            left: 'center',
+                            top: 'center'
+                        }
+                    });
+                    return;
+                }
+
+                const clusters = clusterData.map(item => `组${item.CLUSTER}`);
+                const counts = clusterData.map(item => item.record_count);
+                const avgQuantities = clusterData.map(item => item.avg_quantity);
+
+                const option = {
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: {
+                            type: 'shadow'
+                        }
+                    },
+                    legend: {
+                        data: ['记录数量', '平均出库量']
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: clusters
+                    },
+                    yAxis: [
+                        {
+                            type: 'value',
+                            name: '记录数量',
+                            position: 'left'
+                        },
+                        {
+                            type: 'value',
+                            name: '平均出库量',
+                            position: 'right'
+                        }
+                    ],
+                    series: [
+                        {
+                            name: '记录数量',
+                            type: 'bar',
+                            data: counts,
+                            itemStyle: {
+                                color: '#5470c6'
+                            }
+                        },
+                        {
+                            name: '平均出库量',
+                            type: 'line',
+                            yAxisIndex: 1,
+                            data: avgQuantities,
+                            itemStyle: {
+                                color: '#ee6666'
+                            }
+                        }
+                    ]
+                };
+
+                this.clusterChart.setOption(option);
+            },
+
+            async loadPredictionDetails() {
+                try {
+                    const res = await axios.get('/api/db4ai/prediction-details');
+                    if (res.data.code === 200) {
+                        this.predictionDetails = res.data.data.details || [];
+
+                        // 更新统计信息
+                        const stats = res.data.data.stats;
+                        const changeStats = res.data.data.changeStats;
+
+                        this.predictionStats[0].value = stats.total_predictions || 0;
+                        this.predictionStats[1].value = stats.low_stock_count || 0;
+                        this.predictionStats[2].value = changeStats.increase_count || 0;
+                        this.predictionStats[3].value = changeStats.decrease_count || 0;
+                        this.predictionStats[4].value = this.formatNumber(changeStats.avg_change || 0);
+
+                        this.increaseCount = changeStats.increase_count || 0;
+                        this.decreaseCount = changeStats.decrease_count || 0;
+                        this.avgChange = changeStats.avg_change || 0;
+
+                        // 渲染预测详情图表
+                        this.renderPredictionDetailChart();
+                    }
+                } catch (error) {
+                    console.error('加载预测详情失败:', error);
+                }
+            },
+
+            // 渲染预测详情图表
+            renderPredictionDetailChart() {
+                const chartDom = document.getElementById('predictionDetailChart');
+                if (!chartDom) return;
+
+                const chart = echarts.init(chartDom);
+
+                // 按变化大小排序
+                const sortedDetails = [...this.predictionDetails].sort((a, b) =>
+                    b.predicted_change - a.predicted_change
+                );
+
+                const materialNames = sortedDetails.map(d => d.material_name.substring(0, 8) + '...');
+                const changes = sortedDetails.map(d => d.predicted_change);
+                const colors = changes.map(change => change > 0 ? '#52c41a' : '#ff4d4f');
+
+                const option = {
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: function(params) {
+                            const data = sortedDetails[params[0].dataIndex];
+                            return `${data.material_name}<br/>
+                    当前库存: ${formatNumber(data.current_stock)}<br/>
+                    预测变化: ${formatNumber(data.predicted_change)}<br/>
+                    预测库存: ${formatNumber(data.predicted_stock)}<br/>
+                    安全库存: ${formatNumber(data.safe_stock_min)}<br/>
+                    状态: ${data.prediction_status}`;
+                        }
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        top: '10%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: materialNames,
+                        axisLabel: {
+                            rotate: 45,
+                            fontSize: 10
+                        }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '预测变化量'
+                    },
+                    series: [{
+                        data: changes,
+                        type: 'bar',
+                        itemStyle: {
+                            color: function(params) {
+                                return colors[params.dataIndex];
+                            }
+                        },
+                        label: {
+                            show: true,
+                            position: 'top',
+                            formatter: function(params) {
+                                return (params.value > 0 ? '+' : '') + formatNumber(params.value);
+                            }
+                        }
+                    }]
+                };
+
+                chart.setOption(option);
+            },
+
+            // 获取预测状态标签类型
+            getPredictionStatusType(status) {
+                switch(status) {
+                    case '需要预警': return 'danger';
+                    case '库存下降': return 'warning';
+                    case '库存上升': return 'success';
+                    default: return 'info';
+                }
+            },
+
+            // 渲染异常趋势图表
+            renderAnomalyTrendChart() {
+                const chartDom = document.getElementById('anomalyTrendChart');
+                if (!chartDom) return;
+
+                if (this.anomalyTrendChart) {
+                    this.anomalyTrendChart.dispose();
+                }
+
+                this.anomalyTrendChart = echarts.init(chartDom);
+
+                if (!this.anomalyRecords || this.anomalyRecords.length === 0) {
+                    this.anomalyTrendChart.setOption({
+                        title: {
+                            text: '暂无异常趋势数据',
+                            left: 'center',
+                            top: 'center'
+                        }
+                    });
+                    return;
+                }
+
+                // 按日期分组统计异常数量
+                const dateMap = {};
+                this.anomalyRecords.forEach(record => {
+                    const date = new Date(record.operationTime).toISOString().split('T')[0];
+                    if (!dateMap[date]) {
+                        dateMap[date] = 0;
+                    }
+                    dateMap[date]++;
+                });
+
+                const dates = Object.keys(dateMap).sort();
+                const counts = dates.map(date => dateMap[date]);
+
+                const option = {
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: dates,
+                        axisLabel: {
+                            rotate: 45
+                        }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: '异常数量'
+                    },
+                    series: [{
+                        data: counts,
+                        type: 'line',
+                        smooth: true,
+                        itemStyle: {
+                            color: '#f56c6c'
+                        },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(245, 108, 108, 0.6)' },
+                                { offset: 1, color: 'rgba(245, 108, 108, 0.1)' }
+                            ])
+                        }
+                    }]
+                };
+
+                this.anomalyTrendChart.setOption(option);
+            },
+
+            // 获取预测相关组件
+            getPredictionComponents() {
+                if (!this.systemStatus?.db4aiComponents) return [];
+                return [
+                    { name: 'MATERIAL_NUM', status: this.systemStatus.db4aiComponents.MATERIAL_NUM },
+                    { name: 'V_DAILY_STOCK_CHANGE', status: this.systemStatus.db4aiComponents.V_DAILY_STOCK_CHANGE },
+                    { name: 'stock_xgb_model', status: this.systemStatus.db4aiComponents.stock_xgb_model }
+                ];
+            },
+
+            // 获取异常检测组件
+            getAnomalyComponents() {
+                if (!this.systemStatus?.db4aiComponents) return [];
+                return [
+                    { name: 'V_OUT_RECORD_ARRAY_4517', status: this.systemStatus.db4aiComponents.V_OUT_RECORD_ARRAY_4517 },
+                    { name: 'stock_kmeans_model_4517', status: this.systemStatus.db4aiComponents.stock_kmeans_model_4517 },
+                    { name: 'V_MATERIAL_OUT_STATS_4517', status: this.systemStatus.db4aiComponents.V_MATERIAL_OUT_STATS_4517 },
+                    { name: 'V_ANOMALY_INOUT_LOOSE_4517', status: this.systemStatus.db4aiComponents.V_ANOMALY_INOUT_LOOSE_4517 }
+                ];
+            },
+
+            // 获取视图状态表格数据
+            getViewStatusTable() {
+                if (!this.modelTestResult?.viewStatus) return [];
+                return Object.entries(this.modelTestResult.viewStatus).map(([view, status]) => ({
+                    view: view,
+                    status: status
+                }));
+            },
+
+            // 异常等级样式
+            getAnomalyClass(zScore) {
+                if (!zScore) return '';
+                if (zScore >= 3.0) return 'anomaly-high';
+                if (zScore >= 2.0) return 'anomaly-medium';
+                return '';
+            },
+
+            // Z分数标签类型
+            getZScoreTagType(zScore) {
+                if (!zScore) return 'info';
+                if (zScore >= 3.0) return 'danger';
+                if (zScore >= 2.0) return 'warning';
+                return 'success';
+            },
+
+            // 聚类描述颜色
+            getClusterDescriptionColor(cluster) {
+                const colors = ['#5470c6', '#91cc75', '#fac858', '#ee6666'];
+                return colors[cluster % colors.length];
+            },
+
+            // 格式化日期时间
+            formatDateTime(dateTime) {
+                if (!dateTime) return '';
+                return new Date(dateTime).toLocaleString('zh-CN');
+            },
+
+            // 格式化数字
+            formatNumber(value) {
+                if (value === null || value === undefined) return '0';
+                const num = parseFloat(value);
+                if (isNaN(num)) return '0';
+                return num.toLocaleString('zh-CN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            },
+
+            // 显示预测配置对话框
+            showPredictionConfig() {
+                this.predictionConfigDialog.visible = true;
+            },
+
+            // 保存预测配置
+            savePredictionConfig() {
+                ElMessage.success('预测配置已保存');
+                this.predictionConfigDialog.visible = false;
+            },
+
+            // 显示异常详情对话框
+            showAnomalyDetail(record) {
+                this.anomalyDetailDialog = {
+                    visible: true,
+                    recordId: record.recordId,
+                    data: record,
+                    remark: ''
+                };
+            },
+
+            // 保存异常审核
+            saveAnomalyReview() {
+                ElMessage.success('审核意见已保存');
+                this.anomalyDetailDialog.visible = false;
+            },
+
+            // 标记异常为已审核
+            markAsReviewed(record) {
+                ElMessageBox.confirm(`确定要标记记录 "${record.recordId}" 为已审核吗?`, '确认', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    ElMessage.success('标记成功');
+                    // 从列表中移除
+                    this.anomalyRecords = this.anomalyRecords.filter(r => r.recordId !== record.recordId);
+                }).catch(() => {});
+            },
+
+            // 创建采购订单
+            createPurchaseOrder(material) {
+                const purchaseAmount = material.safeStockMin - material.predictedStock;
+                ElMessageBox.prompt('请输入采购数量', '创建采购单', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    inputValue: this.formatNumber(purchaseAmount),
+                    inputValidator: (value) => {
+                        if (!value || parseFloat(value) <= 0) {
+                            return '采购数量必须大于0';
+                        }
+                        return true;
+                    }
+                }).then(({ value }) => {
+                    ElMessage.success(`已为 ${material.materialName} 创建采购单，数量: ${value}`);
+                }).catch(() => {});
+            },
+
+            // 导出采购清单
+            exportPurchaseList() {
+                const purchaseList = this.predictions
+                    .filter(p => p.predictedStock < p.safeStockMin)
+                    .map(p => ({
+                        物料编号: p.materialId,
+                        物料名称: p.materialName,
+                        当前库存: p.currentStock,
+                        预测库存: p.predictedStock,
+                        安全库存: p.safeStockMin,
+                        采购缺口: p.safeStockMin - p.predictedStock,
+                        建议采购量: Math.ceil((p.safeStockMin - p.predictedStock) * 1.2)
+                    }));
+
+                if (purchaseList.length === 0) {
+                    ElMessage.warning('没有需要采购的物料');
+                    return;
+                }
+
+                const csvContent = "data:text/csv;charset=utf-8,"
+                    + Object.keys(purchaseList[0]).join(",") + "\n"
+                    + purchaseList.map(row => Object.values(row).join(",")).join("\n");
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `采购清单_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                ElMessage.success('采购清单导出成功');
+            },
+
+            // 导出异常报告
+            exportAnomalyReport() {
+                if (this.anomalyRecords.length === 0) {
+                    ElMessage.warning('没有异常记录可导出');
+                    return;
+                }
+
+                const reportData = this.anomalyRecords.map(r => ({
+                    单据号: r.recordId,
+                    物料编号: r.materialId,
+                    物料名称: r.materialName,
+                    出库数量: r.quantity,
+                    操作员: r.operatorName,
+                    操作时间: new Date(r.operationTime).toLocaleString('zh-CN'),
+                    异常原因: r.anomalyReason,
+                    Z分数: r.zScore ? r.zScore.toFixed(2) : 'N/A',
+                    聚类分组: `组${r.cluster}`
+                }));
+
+                const csvContent = "data:text/csv;charset=utf-8,"
+                    + Object.keys(reportData[0]).join(",") + "\n"
+                    + reportData.map(row => Object.values(row).join(",")).join("\n");
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `异常检测报告_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                ElMessage.success('异常检测报告导出成功');
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>

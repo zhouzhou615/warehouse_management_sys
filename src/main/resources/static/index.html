@@ -91,6 +91,16 @@
             font-size: 12px;
             font-weight: bold;
         }
+
+        .ai-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -126,6 +136,11 @@
                             <span>库存预警</span>
                         </el-badge>
                     </el-menu-item>
+                    <el-menu-item index="db4ai">
+                        <i class="el-icon-cpu"></i>
+                        <span>AI智能分析</span>
+                        <span class="ai-badge">AI</span>
+                    </el-menu-item>
                     <el-menu-item index="statistics">
                         <i class="el-icon-pie-chart"></i>
                         <span>统计分析</span>
@@ -141,7 +156,7 @@
                 <div v-show="activeMenu === 'dashboard'">
                     <el-row :gutter="20">
                         <el-col :span="6" v-for="stat in dashboardStats" :key="stat.title">
-                            <div class="dashboard-card">
+                            <div class="dashboard-card" @click="handleStatClick(stat.title)">
                                 <div v-if="stat.alert" class="alert-badge">{{ stat.alert }}</div>
                                 <div style="margin-bottom: 12px; color: #909399;">{{ stat.title }}</div>
                                 <div class="stat-number">{{ stat.value }}</div>
@@ -204,8 +219,15 @@
                 </iframe>
 
                 <iframe
+                        v-show="activeMenu === 'db4ai'"
+                        src="db4ai.html"
+                        frameborder="0"
+                        style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
+                </iframe>
+
+                <iframe
                         v-show="activeMenu === 'statistics'"
-                        src="/warehouse/statistics.html"
+                        src="statistics.html"
                         frameborder="0"
                         style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
                 </iframe>
@@ -226,10 +248,10 @@
                 activeMenu: 'dashboard',
                 alertCount: 0,
                 dashboardStats: [
-                    { title: '物料总数', value: 0, trend: null },
-                    { title: '库存总值', value: '¥0', trend: null },
-                    { title: '低库存预警', value: 0, alert: 0 },
-                    { title: '今日出入库', value: 0, trend: null }
+                    { title: '物料总数', value: 0, trend: null, clickAction: 'material' },
+                    { title: '库存总值', value: '¥0', trend: null, clickAction: 'material' },
+                    { title: '低库存预警', value: 0, alert: 0, clickAction: 'alert' },
+                    { title: '今日出入库', value: 0, trend: null, clickAction: 'inout' }
                 ],
                 trendChart: null,
                 stockStatusChart: null,
@@ -249,6 +271,14 @@
                     });
                 }
             },
+
+            handleStatClick(statTitle) {
+                const stat = this.dashboardStats.find(s => s.title === statTitle);
+                if (stat && stat.clickAction) {
+                    this.activeMenu = stat.clickAction;
+                }
+            },
+
             async loadDashboardData() {
                 try {
                     // 1. 获取统计概览数据
@@ -287,11 +317,11 @@
                         this.renderTrendChart(supplierStatsRes.data.data);
                     }
 
-                    // 4. 获取月度数据（可选）
-                    const monthlyRes = await axios.get('/api/statistics/monthly');
-                    if (monthlyRes.data.code === 200) {
-                        // 可以用于其他图表
-                        console.log('月度数据:', monthlyRes.data.data);
+                    // 4. 获取AI预测数据
+                    const aiPredictionsRes = await axios.get('/api/db4ai/purchase-recommendations');
+                    if (aiPredictionsRes.data.code === 200 && aiPredictionsRes.data.data.length > 0) {
+                        // 显示AI预测的采购推荐数量
+                        this.dashboardStats[2].alert += ' (' + aiPredictionsRes.data.data.length + ' AI预测)';
                     }
 
                 } catch (error) {
