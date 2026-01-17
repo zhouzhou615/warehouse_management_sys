@@ -101,6 +101,48 @@
             margin-left: 5px;
             vertical-align: middle;
         }
+
+        /* 新增的用户信息样式 */
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-left: 20px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+
+        .user-name {
+            color: #606266;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .user-dropdown {
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        .user-dropdown:hover {
+            background-color: #f5f5f5;
+        }
+
+        .logout-btn {
+            color: #f56c6c;
+        }
     </style>
 </head>
 <body>
@@ -113,45 +155,74 @@
                     <i class="el-icon-box"></i>
                     工业物料库存管理系统
                 </div>
-                <el-menu mode="horizontal" :default-active="activeMenu" @select="handleMenuSelect">
-                    <el-menu-item index="dashboard">
-                        <i class="el-icon-data-line"></i>
-                        <span>数据看板</span>
-                    </el-menu-item>
-                    <el-menu-item index="material">
-                        <i class="el-icon-box"></i>
-                        <span>物料管理</span>
-                    </el-menu-item>
-                    <el-menu-item index="supplier">
-                        <i class="el-icon-user"></i>
-                        <span>供应商管理</span>
-                    </el-menu-item>
-                    <el-menu-item index="inout">
-                        <i class="el-icon-sort"></i>
-                        <span>出入库</span>
-                    </el-menu-item>
-                    <el-menu-item index="alert">
-                        <el-badge :value="alertCount" :hidden="alertCount === 0">
-                            <i class="el-icon-warning"></i>
-                            <span>库存预警</span>
-                        </el-badge>
-                    </el-menu-item>
-                    <el-menu-item index="db4ai">
-                        <i class="el-icon-cpu"></i>
-                        <span>AI智能分析</span>
-                        <span class="ai-badge">AI</span>
-                    </el-menu-item>
-                    <el-menu-item index="statistics">
-                        <i class="el-icon-pie-chart"></i>
-                        <span>统计分析</span>
-                    </el-menu-item>
-                </el-menu>
+                <div style="display: flex; align-items: center;">
+                    <el-menu mode="horizontal" :default-active="activeMenu" @select="handleMenuSelect">
+                        <el-menu-item index="dashboard">
+                            <i class="el-icon-data-line"></i>
+                            <span>数据看板</span>
+                        </el-menu-item>
+                        <el-menu-item index="material">
+                            <i class="el-icon-box"></i>
+                            <span>物料管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="supplier">
+                            <i class="el-icon-user"></i>
+                            <span>供应商管理</span>
+                        </el-menu-item>
+                        <el-menu-item index="inout">
+                            <i class="el-icon-sort"></i>
+                            <span>出入库</span>
+                        </el-menu-item>
+                        <el-menu-item index="alert">
+                            <el-badge :value="alertCount" :hidden="alertCount === 0">
+                                <i class="el-icon-warning"></i>
+                                <span>库存预警</span>
+                            </el-badge>
+                        </el-menu-item>
+                        <el-menu-item index="db4ai">
+                            <i class="el-icon-cpu"></i>
+                            <span>AI智能分析</span>
+                            <span class="ai-badge">AI</span>
+                        </el-menu-item>
+                        <el-menu-item index="statistics">
+                            <i class="el-icon-pie-chart"></i>
+                            <span>统计分析</span>
+                        </el-menu-item>
+                    </el-menu>
+
+                    <!-- 用户信息 -->
+                    <div class="user-info" v-if="currentUser">
+                        <el-dropdown @command="handleUserCommand" trigger="click">
+                            <div class="user-dropdown">
+                                <div style="display: flex; align-items: center;">
+                                    <div class="user-avatar">
+                                        {{ getAvatarText(currentUser.operatorName) }}
+                                    </div>
+                                    <div>
+                                        <div class="user-name">{{ currentUser.operatorName }}</div>
+                                        <div style="font-size: 12px; color: #909399;">
+                                            {{ currentUser.department || '未设置部门' }}
+                                        </div>
+                                    </div>
+                                    <i class="el-icon-arrow-down el-icon--right" style="margin-left: 8px; color: #909399;"></i>
+                                </div>
+                            </div>
+                            <template #dropdown>
+                                <el-dropdown-menu>
+                                    <el-dropdown-item divided command="logout" class="logout-btn">
+                                        <i class="el-icon-switch-button"></i> 退出登录
+                                    </el-dropdown-item>
+                                </el-dropdown-menu>
+                            </template>
+                        </el-dropdown>
+                    </div>
+                </div>
             </div>
         </el-header>
 
         <!-- 主内容区 -->
         <el-main style="background: transparent;">
-            <div class="main-container">
+            <div class="main-container" v-if="!loading">
                 <!-- 数据看板 -->
                 <div v-show="activeMenu === 'dashboard'">
                     <el-row :gutter="20">
@@ -167,26 +238,28 @@
                         </el-col>
                     </el-row>
 
-                    <!-- 图表 -->
-                    <div class="chart-container">
-                        <h3 style="margin-bottom: 20px;">出入库趋势</h3>
-                        <div id="trendChart" style="height: 400px;"></div>
-                    </div>
+                    <!-- 图表容器，使用 v-if 确保 DOM 存在时才渲染 -->
+                    <template v-if="chartsReady">
+                        <div class="chart-container">
+                            <h3 style="margin-bottom: 20px;">出入库趋势</h3>
+                            <div id="trendChart" style="height: 400px;"></div>
+                        </div>
 
-                    <el-row :gutter="20" style="margin-top: 20px;">
-                        <el-col :span="12">
-                            <div class="chart-container">
-                                <h3 style="margin-bottom: 20px;">库存状态分布</h3>
-                                <div id="stockStatusChart" style="height: 350px;"></div>
-                            </div>
-                        </el-col>
-                        <el-col :span="12">
-                            <div class="chart-container">
-                                <h3 style="margin-bottom: 20px;">预警类型分布</h3>
-                                <div id="alertTypeChart" style="height: 350px;"></div>
-                            </div>
-                        </el-col>
-                    </el-row>
+                        <el-row :gutter="20" style="margin-top: 20px;">
+                            <el-col :span="12">
+                                <div class="chart-container">
+                                    <h3 style="margin-bottom: 20px;">库存状态分布</h3>
+                                    <div id="stockStatusChart" style="height: 350px;"></div>
+                                </div>
+                            </el-col>
+                            <el-col :span="12">
+                                <div class="chart-container">
+                                    <h3 style="margin-bottom: 20px;">预警类型分布</h3>
+                                    <div id="alertTypeChart" style="height: 350px;"></div>
+                                </div>
+                            </el-col>
+                        </el-row>
+                    </template>
                 </div>
 
                 <!-- 其他页面通过iframe加载 -->
@@ -232,21 +305,67 @@
                         style="width: 100%; height: calc(100vh - 100px); border-radius: 12px; background: white;">
                 </iframe>
             </div>
+
+            <!-- 加载中状态 -->
+            <div v-if="loading" style="display: flex; justify-content: center; align-items: center; height: 400px;">
+                <el-card style="padding: 40px; text-align: center;">
+                    <el-icon size="48" color="#667eea" class="is-loading">
+                        <el-icon-loading />
+                    </el-icon>
+                    <p style="margin-top: 20px; color: #606266;">加载中，请稍候...</p>
+                </el-card>
+            </div>
         </el-main>
     </el-container>
 </div>
 
 <script>
     const { createApp } = Vue;
-    const { ElMessage } = ElementPlus;
+    const { ElMessage, ElMessageBox } = ElementPlus;
 
     axios.defaults.baseURL = '/warehouse';
+
+    // 添加请求拦截器，在请求头中添加token
+    axios.interceptors.request.use(
+        config => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+            return config;
+        },
+        error => {
+            return Promise.reject(error);
+        }
+    );
+
+    // 添加响应拦截器，处理401未授权
+    axios.interceptors.response.use(
+        response => {
+            return response;
+        },
+        error => {
+            if (error.response && error.response.status === 401) {
+                // token无效或过期
+                ElMessage.error('登录已过期，请重新登录');
+                localStorage.removeItem('token');
+                localStorage.removeItem('userInfo');
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 1500);
+            }
+            return Promise.reject(error);
+        }
+    );
 
     createApp({
         data() {
             return {
                 activeMenu: 'dashboard',
                 alertCount: 0,
+                currentUser: null,
+                loading: true,
+                chartsReady: false, // 新增：标记图表容器是否准备好
                 dashboardStats: [
                     { title: '物料总数', value: 0, trend: null, clickAction: 'material' },
                     { title: '库存总值', value: '¥0', trend: null, clickAction: 'material' },
@@ -259,15 +378,111 @@
             }
         },
         mounted() {
-            this.loadDashboardData();
-            this.initCharts();
+            this.checkLoginStatus();
         },
         methods: {
+            // 检查登录状态
+            async checkLoginStatus() {
+                try {
+                    const token = localStorage.getItem('token');
+                    const userInfo = localStorage.getItem('userInfo');
+
+                    if (!token || !userInfo) {
+                        // 未登录，跳转到登录页
+                        window.location.href = 'login.html';
+                        return;
+                    }
+
+                    // 解析用户信息
+                    this.currentUser = JSON.parse(userInfo);
+
+                    // 验证token有效性
+                    await this.validateToken();
+
+                    // 数据加载完成后，设置chartsReady为true，确保DOM元素存在
+                    this.loadDashboardData().then(() => {
+                        this.$nextTick(() => {
+                            this.chartsReady = true;
+                            // 等待DOM更新后初始化图表
+                            setTimeout(() => {
+                                this.initCharts();
+                            }, 100);
+                        });
+                    });
+
+                } catch (error) {
+                    console.error('检查登录状态失败:', error);
+                    ElMessage.error('登录验证失败，请重新登录');
+                    this.logout();
+                }
+            },
+
+            // 验证token有效性
+            async validateToken() {
+                try {
+                    if (!this.currentUser || !this.currentUser.operatorId) {
+                        throw new Error('用户信息不完整');
+                    }
+
+                    const res = await axios.get('/api/auth/validate', {
+                        params: { operatorId: this.currentUser.operatorId }
+                    });
+
+                    if (res.data.code !== 200 || !res.data.data) {
+                        throw new Error('用户验证失败');
+                    }
+
+                    return true;
+                } catch (error) {
+                    console.error('Token验证失败:', error);
+                    throw error;
+                }
+            },
+
+            // 处理用户命令
+            handleUserCommand(command) {
+                if (command === 'logout') {
+                    this.logout();
+                }
+            },
+
+            // 退出登录
+            logout() {
+                ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    // 清除本地存储
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('userInfo');
+
+                    // 跳转到登录页
+                    window.location.href = 'login.html';
+                }).catch(() => {
+                    // 用户取消操作
+                });
+            },
+
+            // 获取头像文本（显示姓名的前两个字符）
+            getAvatarText(name) {
+                if (!name) return 'OP';
+                const chineseMatch = name.match(/[\u4e00-\u9fa5]/g);
+                if (chineseMatch && chineseMatch.length >= 2) {
+                    return chineseMatch.slice(0, 2).join('');
+                }
+                return name.substring(0, 2).toUpperCase();
+            },
+
             handleMenuSelect(index) {
                 this.activeMenu = index;
                 if (index === 'dashboard') {
+                    // 当切换回dashboard时，确保图表容器已准备好
                     this.$nextTick(() => {
-                        this.initCharts();
+                        this.chartsReady = true;
+                        setTimeout(() => {
+                            this.initCharts();
+                        }, 100);
                     });
                 }
             },
@@ -280,6 +495,7 @@
             },
 
             async loadDashboardData() {
+                this.loading = true;
                 try {
                     // 1. 获取统计概览数据
                     const overviewRes = await axios.get('/api/statistics/overview');
@@ -293,8 +509,8 @@
                         this.dashboardStats[2].value = data.low_stock_count || 0;
                         this.dashboardStats[2].alert = data.low_stock_count || 0;
 
-                        // 渲染库存状态分布图
-                        this.renderStockStatusChart(data);
+                        // 存储数据，稍后渲染图表
+                        this.overviewData = data;
                     }
 
                     // 2. 获取预警统计数据
@@ -306,22 +522,26 @@
                         // 更新预警数量显示
                         this.dashboardStats[2].alert = this.alertCount;
 
-                        // 渲染预警类型分布图
-                        this.renderAlertTypeChart(data);
+                        // 存储数据，稍后渲染图表
+                        this.alertStatsData = data;
                     }
 
                     // 3. 获取供应商统计数据
                     const supplierStatsRes = await axios.get('/api/statistics/supplierStats');
                     if (supplierStatsRes.data.code === 200) {
-                        // 使用供应商数据来展示趋势
-                        this.renderTrendChart(supplierStatsRes.data.data);
+                        // 存储数据，稍后渲染图表
+                        this.supplierStatsData = supplierStatsRes.data.data;
                     }
 
                     // 4. 获取AI预测数据
-                    const aiPredictionsRes = await axios.get('/api/db4ai/purchase-recommendations');
-                    if (aiPredictionsRes.data.code === 200 && aiPredictionsRes.data.data.length > 0) {
-                        // 显示AI预测的采购推荐数量
-                        this.dashboardStats[2].alert += ' (' + aiPredictionsRes.data.data.length + ' AI预测)';
+                    try {
+                        const aiPredictionsRes = await axios.get('/api/db4ai/purchase-recommendations');
+                        if (aiPredictionsRes.data.code === 200 && aiPredictionsRes.data.data.length > 0) {
+                            // 显示AI预测的采购推荐数量
+                            this.dashboardStats[2].alert += ' (' + aiPredictionsRes.data.data.length + ' AI预测)';
+                        }
+                    } catch (aiError) {
+                        console.log('AI预测接口暂不可用:', aiError.message);
                     }
 
                 } catch (error) {
@@ -337,12 +557,14 @@
                         this.dashboardStats[2].value = 0;
                         this.dashboardStats[3].value = 0;
 
-
                     } else {
                         ElMessage.error('加载数据失败: ' + error.message);
                     }
+                } finally {
+                    this.loading = false;
                 }
             },
+
             async loadSupplierStatsForTrend() {
                 try {
                     const res = await axios.get('/api/statistics/supplierStats');
@@ -354,202 +576,283 @@
                     console.error('加载供应商数据失败:', error);
                 }
             },
-            initCharts() {
-                // 图表在数据加载时渲染，这里不需要初始化
-            },
-            renderTrendChart(supplierData) {
-                if (this.trendChart) {
-                    this.trendChart.dispose();
-                }
-                this.trendChart = echarts.init(document.getElementById('trendChart'));
 
-                if (!supplierData || supplierData.length === 0) {
+            initCharts() {
+                // 确保DOM元素存在后再初始化图表
+                this.$nextTick(() => {
+                    // 使用安全的方式检查DOM元素是否存在
+                    const checkElement = (id) => {
+                        return document.getElementById(id) !== null;
+                    };
+
+                    // 渲染趋势图
+                    if (checkElement('trendChart') && this.supplierStatsData) {
+                        this.renderTrendChart(this.supplierStatsData);
+                    }
+
+                    // 渲染库存状态图
+                    if (checkElement('stockStatusChart') && this.overviewData) {
+                        this.renderStockStatusChart(this.overviewData);
+                    }
+
+                    // 渲染预警类型图
+                    if (checkElement('alertTypeChart') && this.alertStatsData) {
+                        this.renderAlertTypeChart(this.alertStatsData);
+                    }
+                });
+            },
+
+            renderTrendChart(supplierData) {
+                try {
+                    const chartDom = document.getElementById('trendChart');
+                    if (!chartDom) {
+                        console.warn('trendChart 元素不存在');
+                        return;
+                    }
+
+                    // 清理现有图表实例
+                    if (this.trendChart) {
+                        this.trendChart.dispose();
+                    }
+
+                    this.trendChart = echarts.init(chartDom);
+
+                    if (!supplierData || supplierData.length === 0) {
+                        const option = {
+                            title: {
+                                text: '暂无数据',
+                                left: 'center',
+                                top: 'center'
+                            }
+                        };
+                        this.trendChart.setOption(option);
+                        return;
+                    }
+
+                    // 使用供应商物料数量作为趋势数据
+                    const suppliers = supplierData.slice(0, 8).map(s => s.supplier_name || '未知供应商');
+                    const materialCounts = supplierData.slice(0, 8).map(s => s.material_count || 0);
+                    const totalValues = supplierData.slice(0, 8).map(s => parseFloat(s.total_value) || 0);
+
                     const option = {
-                        title: {
-                            text: '暂无数据',
-                            left: 'center',
-                            top: 'center'
-                        }
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: {
+                                type: 'cross',
+                                crossStyle: {
+                                    color: '#999'
+                                }
+                            }
+                        },
+                        legend: {
+                            data: ['物料数量', '库存总值(万)']
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: suppliers,
+                            axisLabel: {
+                                rotate: 45
+                            }
+                        },
+                        yAxis: [
+                            {
+                                type: 'value',
+                                name: '物料数量',
+                                min: 0
+                            },
+                            {
+                                type: 'value',
+                                name: '库存总值(万)',
+                                min: 0
+                            }
+                        ],
+                        series: [
+                            {
+                                name: '物料数量',
+                                type: 'bar',
+                                data: materialCounts,
+                                itemStyle: {
+                                    color: '#5470c6'
+                                }
+                            },
+                            {
+                                name: '库存总值(万)',
+                                type: 'line',
+                                yAxisIndex: 1,
+                                data: totalValues.map(v => (v / 10000).toFixed(2)),
+                                itemStyle: {
+                                    color: '#ee6666'
+                                }
+                            }
+                        ]
                     };
                     this.trendChart.setOption(option);
-                    return;
+
+                    // 监听窗口大小变化，重新调整图表大小
+                    window.addEventListener('resize', () => {
+                        if (this.trendChart) {
+                            this.trendChart.resize();
+                        }
+                    });
+                } catch (error) {
+                    console.error('渲染趋势图失败:', error);
                 }
-
-                // 使用供应商物料数量作为趋势数据
-                const suppliers = supplierData.slice(0, 8).map(s => s.supplier_name);
-                const materialCounts = supplierData.slice(0, 8).map(s => s.material_count || 0);
-                const totalValues = supplierData.slice(0, 8).map(s => parseFloat(s.total_value) || 0);
-
-                const option = {
-                    tooltip: {
-                        trigger: 'axis',
-                        axisPointer: {
-                            type: 'cross',
-                            crossStyle: {
-                                color: '#999'
-                            }
-                        }
-                    },
-                    legend: {
-                        data: ['物料数量', '库存总值(万)']
-                    },
-                    xAxis: {
-                        type: 'category',
-                        data: suppliers,
-                        axisLabel: {
-                            rotate: 45
-                        }
-                    },
-                    yAxis: [
-                        {
-                            type: 'value',
-                            name: '物料数量',
-                            min: 0
-                        },
-                        {
-                            type: 'value',
-                            name: '库存总值(万)',
-                            min: 0
-                        }
-                    ],
-                    series: [
-                        {
-                            name: '物料数量',
-                            type: 'bar',
-                            data: materialCounts,
-                            itemStyle: {
-                                color: '#5470c6'
-                            }
-                        },
-                        {
-                            name: '库存总值(万)',
-                            type: 'line',
-                            yAxisIndex: 1,
-                            data: totalValues.map(v => (v / 10000).toFixed(2)),
-                            itemStyle: {
-                                color: '#ee6666'
-                            }
-                        }
-                    ]
-                };
-                this.trendChart.setOption(option);
             },
-            renderStockStatusChart(overviewData) {
-                if (this.stockStatusChart) {
-                    this.stockStatusChart.dispose();
-                }
-                this.stockStatusChart = echarts.init(document.getElementById('stockStatusChart'));
 
-                if (!overviewData) {
+            renderStockStatusChart(overviewData) {
+                try {
+                    const chartDom = document.getElementById('stockStatusChart');
+                    if (!chartDom) {
+                        console.warn('stockStatusChart 元素不存在');
+                        return;
+                    }
+
+                    if (this.stockStatusChart) {
+                        this.stockStatusChart.dispose();
+                    }
+
+                    this.stockStatusChart = echarts.init(chartDom);
+
+                    if (!overviewData) {
+                        const option = {
+                            title: {
+                                text: '暂无数据',
+                                left: 'center',
+                                top: 'center'
+                            }
+                        };
+                        this.stockStatusChart.setOption(option);
+                        return;
+                    }
+
+                    const total = overviewData.total_materials || 0;
+                    const lowStock = overviewData.low_stock_count || 0;
+                    const highStock = overviewData.high_stock_count || 0;
+                    const normalStock = Math.max(0, total - lowStock - highStock);
+
                     const option = {
-                        title: {
-                            text: '暂无数据',
-                            left: 'center',
-                            top: 'center'
-                        }
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: '{a} <br/>{b}: {c} ({d}%)'
+                        },
+                        legend: {
+                            orient: 'vertical',
+                            left: 'left'
+                        },
+                        series: [{
+                            name: '库存状态',
+                            type: 'pie',
+                            radius: '70%',
+                            data: [
+                                { value: normalStock, name: '正常库存', itemStyle: { color: '#67c23a' } },
+                                { value: lowStock, name: '低库存', itemStyle: { color: '#f56c6c' } },
+                                { value: highStock, name: '高库存', itemStyle: { color: '#e6a23c' } }
+                            ],
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }]
                     };
                     this.stockStatusChart.setOption(option);
-                    return;
-                }
 
-                const total = overviewData.total_materials || 0;
-                const lowStock = overviewData.low_stock_count || 0;
-                const highStock = overviewData.high_stock_count || 0;
-                const normalStock = total - lowStock - highStock;
-
-                const option = {
-                    tooltip: {
-                        trigger: 'item',
-                        formatter: '{a} <br/>{b}: {c} ({d}%)'
-                    },
-                    legend: {
-                        orient: 'vertical',
-                        left: 'left'
-                    },
-                    series: [{
-                        name: '库存状态',
-                        type: 'pie',
-                        radius: '70%',
-                        data: [
-                            { value: normalStock, name: '正常库存', itemStyle: { color: '#67c23a' } },
-                            { value: lowStock, name: '低库存', itemStyle: { color: '#f56c6c' } },
-                            { value: highStock, name: '高库存', itemStyle: { color: '#e6a23c' } }
-                        ],
-                        emphasis: {
-                            itemStyle: {
-                                shadowBlur: 10,
-                                shadowOffsetX: 0,
-                                shadowColor: 'rgba(0, 0, 0, 0.5)'
-                            }
+                    // 监听窗口大小变化，重新调整图表大小
+                    window.addEventListener('resize', () => {
+                        if (this.stockStatusChart) {
+                            this.stockStatusChart.resize();
                         }
-                    }]
-                };
-                this.stockStatusChart.setOption(option);
+                    });
+                } catch (error) {
+                    console.error('渲染库存状态图失败:', error);
+                }
             },
-            renderAlertTypeChart(alertStats) {
-                if (this.alertTypeChart) {
-                    this.alertTypeChart.dispose();
-                }
-                this.alertTypeChart = echarts.init(document.getElementById('alertTypeChart'));
 
-                if (!alertStats) {
+            renderAlertTypeChart(alertStats) {
+                try {
+                    const chartDom = document.getElementById('alertTypeChart');
+                    if (!chartDom) {
+                        console.warn('alertTypeChart 元素不存在');
+                        return;
+                    }
+
+                    if (this.alertTypeChart) {
+                        this.alertTypeChart.dispose();
+                    }
+
+                    this.alertTypeChart = echarts.init(chartDom);
+
+                    if (!alertStats) {
+                        const option = {
+                            title: {
+                                text: '暂无数据',
+                                left: 'center',
+                                top: 'center'
+                            }
+                        };
+                        this.alertTypeChart.setOption(option);
+                        return;
+                    }
+
+                    const lowStock = alertStats.low_stock_count || 0;
+                    const highStock = alertStats.high_stock_count || 0;
+                    const prediction = alertStats.prediction_count || 0;
+                    const total = lowStock + highStock + prediction;
+
                     const option = {
-                        title: {
-                            text: '暂无数据',
-                            left: 'center',
-                            top: 'center'
-                        }
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: '{a} <br/>{b}: {c} ({d}%)'
+                        },
+                        legend: {
+                            orient: 'vertical',
+                            left: 'left'
+                        },
+                        series: [{
+                            name: '预警类型',
+                            type: 'pie',
+                            radius: '70%',
+                            data: [
+                                {
+                                    value: lowStock,
+                                    name: '低库存预警',
+                                    itemStyle: { color: '#f56c6c' }
+                                },
+                                {
+                                    value: highStock,
+                                    name: '高库存预警',
+                                    itemStyle: { color: '#e6a23c' }
+                                },
+                                {
+                                    value: prediction,
+                                    name: '预测缺货',
+                                    itemStyle: { color: '#409eff' }
+                                }
+                            ],
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }]
                     };
                     this.alertTypeChart.setOption(option);
-                    return;
-                }
 
-                const lowStock = alertStats.low_stock_count || 0;
-                const highStock = alertStats.high_stock_count || 0;
-                const prediction = alertStats.prediction_count || 0;
-                const total = lowStock + highStock + prediction;
-
-                const option = {
-                    tooltip: {
-                        trigger: 'item',
-                        formatter: '{a} <br/>{b}: {c} ({d}%)'
-                    },
-                    legend: {
-                        orient: 'vertical',
-                        left: 'left'
-                    },
-                    series: [{
-                        name: '预警类型',
-                        type: 'pie',
-                        radius: '70%',
-                        data: [
-                            {
-                                value: lowStock,
-                                name: '低库存预警',
-                                itemStyle: { color: '#f56c6c' }
-                            },
-                            {
-                                value: highStock,
-                                name: '高库存预警',
-                                itemStyle: { color: '#e6a23c' }
-                            },
-                            {
-                                value: prediction,
-                                name: '预测缺货',
-                                itemStyle: { color: '#409eff' }
-                            }
-                        ],
-                        emphasis: {
-                            itemStyle: {
-                                shadowBlur: 10,
-                                shadowOffsetX: 0,
-                                shadowColor: 'rgba(0, 0, 0, 0.5)'
-                            }
+                    // 监听窗口大小变化，重新调整图表大小
+                    window.addEventListener('resize', () => {
+                        if (this.alertTypeChart) {
+                            this.alertTypeChart.resize();
                         }
-                    }]
-                };
-                this.alertTypeChart.setOption(option);
+                    });
+                } catch (error) {
+                    console.error('渲染预警类型图失败:', error);
+                }
             },
+
             formatNumber(value) {
                 if (value === null || value === undefined) return '0';
                 const num = parseFloat(value);

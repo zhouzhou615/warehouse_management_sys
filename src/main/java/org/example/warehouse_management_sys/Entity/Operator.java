@@ -12,4 +12,5 @@ public class Operator {
     private String email;
     private String status;
     private LocalDateTime createTime;
+    private String password;  // 新增密码字段
 }

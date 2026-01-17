@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.example.warehouse_management_sys.Mapper.OperatorMapper">
+
+    <resultMap id="OperatorResultMap" type="org.example.warehouse_management_sys.Entity.Operator">
+        <id property="operatorId" column="operator_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="password" column="password"/>
+        <result property="department" column="department"/>
+        <result property="phone" column="phone"/>
+        <result property="email" column="email"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- 登录验证：支持使用operator_id或operator_name登录 -->
+    <select id="selectByLogin" resultMap="OperatorResultMap">
+        SELECT *
+        FROM OPERATOR
+        WHERE (operator_id = #{username} OR operator_name = #{username})
+          AND password = #{password}
+          AND status = '在职'
+    </select>
+
+    <!-- 根据ID查询 -->
+    <select id="selectById" resultMap="OperatorResultMap">
+        SELECT *
+        FROM OPERATOR
+        WHERE operator_id = #{operatorId}
+    </select>
+
+    <!-- 更新密码 -->
+    <update id="updatePassword">
+        UPDATE OPERATOR
+        SET password = #{newPassword}
+        WHERE operator_id = #{operatorId}
+    </update>
+
+</mapper>
