@@ -73,20 +73,30 @@ public class DB4AIController {
         }
         return result;
     }
-    // 获取预测详情
-    @GetMapping("/prediction-details")
-    public Result getPredictionDetails() {
-        Map<String, Object> details = db4aiService.getPredictionDetails();
-        return Result.success(details);
-    }
-
-    // 带详情的预测执行
-//    @PostMapping("/predict-stock-with-details")
-//    public Result predictStockWithDetails() {
-//        Map<String, Object> result = db4aiService.generateStockPredictionsWithDetails();
-//        return Result.success(result);
+//    // 获取预测详情
+//    @GetMapping("/prediction-details")
+//    public Result getPredictionDetails() {
+//        Map<String, Object> details = db4aiService.getPredictionDetails();
+//        return Result.success(details);
 //    }
 
+    /**
+     * 获取预测详情和日志
+     */
+    @GetMapping("/prediction-details")
+    public Map<String, Object> getPredictionDetails() {
+        return db4aiService.getPredictionDetails();
+    }
+
+    /**
+     * 获取预测执行日志
+     */
+    @GetMapping("/prediction-logs")
+    public Map<String, Object> getPredictionLogs(
+            @RequestParam(required = false) String batchId,
+            @RequestParam(defaultValue = "100") Integer limit) {
+        return db4aiService.getPredictionLogs(batchId, limit);
+    }
     /**
      * 获取未来2周采购推荐
      */

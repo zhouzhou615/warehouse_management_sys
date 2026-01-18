@@ -319,64 +319,293 @@ public class DB4AIService {
         }
         return result;
     }
+
+    /**
+
+//    public Map<String, Object> getPredictionDetails() {
+//        Map<String, Object> result = new HashMap<>();
+//        try {
+//            // 从stock_alert表获取预测结果
+//            String sql = "SELECT " +
+//                    "COUNT(*) as total_predictions, " +
+//                    "COUNT(CASE WHEN current_stock < safe_threshold THEN 1 END) as low_stock_count, " +
+//                    "COUNT(CASE WHEN current_stock > safe_threshold THEN 1 END) as safe_count " +
+//                    "FROM stock_alert WHERE alert_type = '低库存'";
+//
+//            Map<String, Object> stats = jdbcTemplate.queryForMap(sql);
+//            result.put("stats", stats);
+//
+//            // 获取详细的预测变化数据
+//            String detailSql = "SELECT " +
+//                    "m.material_id, " +
+//                    "m.material_name, " +
+//                    "m.current_stock, " +
+//                    "sa.current_stock as predicted_stock, " +
+//                    "ROUND((sa.current_stock - m.current_stock)::numeric, 2) as predicted_change, " +
+//                    "m.safe_stock_min, " +
+//                    "CASE " +
+//                    "  WHEN sa.current_stock < m.safe_stock_min THEN '需要预警' " +
+//                    "  WHEN (sa.current_stock - m.current_stock) < 0 THEN '库存下降' " +
+//                    "  ELSE '库存上升' " +
+//                    "END as prediction_status " +
+//                    "FROM stock_alert sa " +
+//                    "JOIN material m ON sa.material_id = m.material_id " +
+//                    "WHERE sa.alert_type = '低库存' " +
+//                    "ORDER BY ABS(sa.current_stock - m.current_stock) DESC " +
+//                    "LIMIT 50";
+//
+//            List<Map<String, Object>> details = jdbcTemplate.queryForList(detailSql);
+//            result.put("details", details);
+//
+//            // 获取变化统计数据
+//            String changeSql = "SELECT " +
+//                    "COUNT(CASE WHEN (sa.current_stock - m.current_stock) > 0 THEN 1 END) as increase_count, " +
+//                    "COUNT(CASE WHEN (sa.current_stock - m.current_stock) < 0 THEN 1 END) as decrease_count, " +
+//                    "ROUND(AVG(sa.current_stock - m.current_stock), 2) as avg_change, " +
+//                    "ROUND(MIN(sa.current_stock - m.current_stock), 2) as min_change, " +
+//                    "ROUND(MAX(sa.current_stock - m.current_stock), 2) as max_change " +
+//                    "FROM stock_alert sa " +
+//                    "JOIN material m ON sa.material_id = m.material_id " +
+//                    "WHERE sa.alert_type = '低库存'";
+//
+//            Map<String, Object> changeStats = jdbcTemplate.queryForMap(changeSql);
+//            result.put("changeStats", changeStats);
+//
+//            result.put("code", 200);
+//            result.put("message", "获取预测详情成功");
+//
+//        } catch (Exception e) {
+//            log.error("获取预测详情失败", e);
+//            result.put("code", 500);
+//            result.put("message", "获取预测详情失败: " + e.getMessage());
+//        }
+//        return result;
+//    }
+    /**
+     * 获取预测详情(从日志表解析)
+     */
+    /**
+     * 获取预测详情(从日志表解析)
+     */
     public Map<String, Object> getPredictionDetails() {
         Map<String, Object> result = new HashMap<>();
         try {
-            // 从stock_alert表获取预测结果
-            String sql = "SELECT " +
-                    "COUNT(*) as total_predictions, " +
-                    "COUNT(CASE WHEN current_stock < safe_threshold THEN 1 END) as low_stock_count, " +
-                    "COUNT(CASE WHEN current_stock > safe_threshold THEN 1 END) as safe_count " +
-                    "FROM stock_alert WHERE alert_type = '低库存'";
+            // 🔥 从日志表获取最新批次
+            String latestBatchSql = "SELECT batch_id FROM stock_prediction_log " +
+                    "WHERE log_level = 'SUCCESS' AND message LIKE '%批次ID:%' " +
+                    "ORDER BY log_time DESC LIMIT 1";
 
-            Map<String, Object> stats = jdbcTemplate.queryForMap(sql);
-            result.put("stats", stats);
+            String batchId = null;
+            try {
+                batchId = jdbcTemplate.queryForObject(latestBatchSql, String.class);
+            } catch (Exception e) {
+                log.warn("未找到预测批次", e);
+            }
 
-            // 获取详细的预测变化数据
-            String detailSql = "SELECT " +
-                    "m.material_id, " +
-                    "m.material_name, " +
-                    "m.current_stock, " +
-                    "sa.current_stock as predicted_stock, " +
-                    "ROUND((sa.current_stock - m.current_stock)::numeric, 2) as predicted_change, " +
-                    "m.safe_stock_min, " +
-                    "CASE " +
-                    "  WHEN sa.current_stock < m.safe_stock_min THEN '需要预警' " +
-                    "  WHEN (sa.current_stock - m.current_stock) < 0 THEN '库存下降' " +
-                    "  ELSE '库存上升' " +
-                    "END as prediction_status " +
-                    "FROM stock_alert sa " +
-                    "JOIN material m ON sa.material_id = m.material_id " +
-                    "WHERE sa.alert_type = '低库存' " +
-                    "ORDER BY ABS(sa.current_stock - m.current_stock) DESC " +
-                    "LIMIT 50";
+            if (batchId == null) {
+                // 没有批次,尝试获取最新的批次
+                try {
+                    batchId = jdbcTemplate.queryForObject(
+                            "SELECT batch_id FROM stock_prediction_log ORDER BY log_time DESC LIMIT 1",
+                            String.class
+                    );
+                } catch (Exception e) {
+                    log.warn("未找到任何批次", e);
+                    // 没有批次，返回空结果
+                    result.put("code", 200);
+                    result.put("message", "无预测数据");
+                    result.put("stats", Collections.emptyMap());
+                    result.put("details", Collections.emptyList());
+                    result.put("changeStats", Collections.emptyMap());
+                    result.put("batchId", null);
+                    return result;
+                }
+            }
 
-            List<Map<String, Object>> details = jdbcTemplate.queryForList(detailSql);
-            result.put("details", details);
+            // 🔥 从日志表解析预测详情
+            String logSql = "SELECT " +
+                    "material_id, " +
+                    "message, " +
+                    "log_level, " +
+                    "log_time " +
+                    "FROM stock_prediction_log " +
+                    "WHERE batch_id = ? " +
+                    "AND material_id IS NOT NULL " +
+                    "AND message LIKE '物料%当前=%' " +
+                    "ORDER BY log_id";
 
-            // 获取变化统计数据
-            String changeSql = "SELECT " +
-                    "COUNT(CASE WHEN (sa.current_stock - m.current_stock) > 0 THEN 1 END) as increase_count, " +
-                    "COUNT(CASE WHEN (sa.current_stock - m.current_stock) < 0 THEN 1 END) as decrease_count, " +
-                    "ROUND(AVG(sa.current_stock - m.current_stock), 2) as avg_change, " +
-                    "ROUND(MIN(sa.current_stock - m.current_stock), 2) as min_change, " +
-                    "ROUND(MAX(sa.current_stock - m.current_stock), 2) as max_change " +
-                    "FROM stock_alert sa " +
-                    "JOIN material m ON sa.material_id = m.material_id " +
-                    "WHERE sa.alert_type = '低库存'";
+            List<Map<String, Object>> logs = jdbcTemplate.queryForList(logSql, batchId);
 
-            Map<String, Object> changeStats = jdbcTemplate.queryForMap(changeSql);
-            result.put("changeStats", changeStats);
+            // 解析日志消息
+            List<Map<String, Object>> details = new ArrayList<>();
+            int increaseCount = 0;
+            int decreaseCount = 0;
+            double totalChange = 0;
+            int validCount = 0;
+
+            for (Map<String, Object> log : logs) {
+                String message = (String) log.get("message");
+                String materialId = (String) log.get("material_id");
+
+                // 解析消息: "物料 MAT00003: 当前=354.78, 变化=17.32, 预测=372.10"
+                Map<String, Object> detail = parseLogMessage(message, materialId);
+                if (detail != null) {
+                    details.add(detail);
+
+                    // 统计变化
+                    BigDecimal change = (BigDecimal) detail.get("predicted_change");
+                    if (change != null) {
+                        if (change.compareTo(BigDecimal.ZERO) > 0) {
+                            increaseCount++;
+                        } else if (change.compareTo(BigDecimal.ZERO) < 0) {
+                            decreaseCount++;
+                        }
+                        totalChange += change.doubleValue();
+                        validCount++;
+                    }
+                }
+            }
+
+            // 补充物料名称和安全库存
+            for (Map<String, Object> detail : details) {
+                String materialId = (String) detail.get("material_id");
+                try {
+                    String materialSql = "SELECT material_name, safe_stock_min FROM material WHERE material_id = ?";
+                    Map<String, Object> material = jdbcTemplate.queryForMap(materialSql, materialId);
+                    detail.put("material_name", material.get("material_name"));
+
+                    // 处理 safe_stock_min 类型转换问题
+                    Object safeStockMinObj = material.get("safe_stock_min");
+                    BigDecimal safeStockMin = null;
+                    if (safeStockMinObj instanceof BigDecimal) {
+                        safeStockMin = (BigDecimal) safeStockMinObj;
+                    } else if (safeStockMinObj instanceof Number) {
+                        safeStockMin = new BigDecimal(((Number) safeStockMinObj).doubleValue());
+                    } else if (safeStockMinObj != null) {
+                        safeStockMin = new BigDecimal(safeStockMinObj.toString());
+                    } else {
+                        safeStockMin = BigDecimal.ZERO;
+                    }
+                    detail.put("safe_stock_min", safeStockMin);
+
+                    // 判断状态
+                    BigDecimal predictedStock = (BigDecimal) detail.get("predicted_stock");
+                    BigDecimal change = (BigDecimal) detail.get("predicted_change");
+
+                    String status;
+                    if (predictedStock.compareTo(safeStockMin) < 0) {
+                        status = "需要预警";
+                    } else if (change.compareTo(BigDecimal.ZERO) < 0) {
+                        status = "库存下降";
+                    } else {
+                        status = "库存上升";
+                    }
+                    detail.put("prediction_status", status);
+                } catch (Exception e) {
+                    log.warn("获取物料 {} 信息失败", materialId, e);
+                    // 设置默认值
+                    detail.put("material_name", materialId);
+                    detail.put("safe_stock_min", BigDecimal.ZERO);
+                    detail.put("prediction_status", "未知");
+                }
+            }
+
+            // 统计信息 - 修复类型转换问题
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("total_predictions", details.size());
+
+            // 使用 long 类型计数，避免 Integer 转换问题
+            long lowStockCount = details.stream()
+                    .filter(d -> "需要预警".equals(d.get("prediction_status")))
+                    .count();
+            stats.put("low_stock_count", lowStockCount);
+            stats.put("safe_count", details.size() - lowStockCount);
+
+            // 变化统计
+            Map<String, Object> changeStats = new HashMap<>();
+            changeStats.put("increase_count", increaseCount);
+            changeStats.put("decrease_count", decreaseCount);
+            changeStats.put("avg_change", validCount > 0 ? totalChange / validCount : 0);
+
+            // 计算最小和最大变化
+            BigDecimal minChange = details.stream()
+                    .map(d -> (BigDecimal) d.get("predicted_change"))
+                    .filter(Objects::nonNull)
+                    .min(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+            BigDecimal maxChange = details.stream()
+                    .map(d -> (BigDecimal) d.get("predicted_change"))
+                    .filter(Objects::nonNull)
+                    .max(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+
+            changeStats.put("min_change", minChange);
+            changeStats.put("max_change", maxChange);
 
             result.put("code", 200);
             result.put("message", "获取预测详情成功");
+            result.put("stats", stats);
+            result.put("details", details);
+            result.put("changeStats", changeStats);
+            result.put("batchId", batchId);
+
+            log.info("从日志表解析出 {} 条预测详情", details.size());
 
         } catch (Exception e) {
             log.error("获取预测详情失败", e);
             result.put("code", 500);
             result.put("message", "获取预测详情失败: " + e.getMessage());
+            result.put("details", Collections.emptyList());
+            result.put("stats", Collections.emptyMap());
+            result.put("changeStats", Collections.emptyMap());
         }
         return result;
+    }
+
+    /**
+     * 解析日志消息
+     * 示例: "物料 MAT00003: 当前=354.78, 变化=17.32, 预测=372.10"
+     */
+    private Map<String, Object> parseLogMessage(String message, String materialId) {
+        try {
+            if (message == null || !message.contains("当前=")) {
+                return null;
+            }
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("material_id", materialId);
+
+            // 使用正则表达式提取数值
+            String currentPattern = "当前=([0-9.]+)";
+            String changePattern = "变化=(-?[0-9.]+)";
+            String predictedPattern = "预测=([0-9.]+)";
+
+            java.util.regex.Pattern pCurrent = java.util.regex.Pattern.compile(currentPattern);
+            java.util.regex.Pattern pChange = java.util.regex.Pattern.compile(changePattern);
+            java.util.regex.Pattern pPredicted = java.util.regex.Pattern.compile(predictedPattern);
+
+            java.util.regex.Matcher mCurrent = pCurrent.matcher(message);
+            java.util.regex.Matcher mChange = pChange.matcher(message);
+            java.util.regex.Matcher mPredicted = pPredicted.matcher(message);
+
+            if (mCurrent.find()) {
+                result.put("current_stock", new BigDecimal(mCurrent.group(1)));
+            }
+
+            if (mChange.find()) {
+                result.put("predicted_change", new BigDecimal(mChange.group(1)));
+            }
+
+            if (mPredicted.find()) {
+                result.put("predicted_stock", new BigDecimal(mPredicted.group(1)));
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            log.warn("解析日志消息失败: {}", message, e);
+            return null;
+        }
     }
 
     /**

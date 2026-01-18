@@ -34,6 +34,14 @@
         .cluster-badge-0 { background: #5470c6; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
         .cluster-badge-1 { background: #91cc75; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
         .cluster-badge-2 { background: #fac858; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+        .operator-display {
+            background-color: #f5f7fa;
+            padding: 10px 15px;
+            border-radius: 4px;
+            border: 1px solid #dcdfe6;
+            color: #606266;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -45,6 +53,23 @@
                 <el-row :gutter="20">
                     <el-col :span="10">
                         <el-card header="出入库单据">
+                            <!-- 当前操作员信息 -->
+                            <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 4px; border-left: 4px solid #409eff;">
+                                <div style="display: flex; align-items: center;">
+                                    <i class="el-icon-user" style="font-size: 18px; color: #409eff; margin-right: 10px;"></i>
+                                    <div>
+                                        <div style="font-weight: bold; color: #409eff;">当前操作员</div>
+                                        <div style="margin-top: 5px;">
+                                            <span style="font-weight: 500;">{{ currentUser.operatorName }}</span>
+                                            <span style="margin-left: 10px; color: #909399;">(ID: {{ currentUser.operatorId }})</span>
+                                            <span style="margin-left: 10px; color: #67c23a; font-size: 12px;">
+                                                {{ currentUser.department || '未设置部门' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <el-form :model="inoutForm" :rules="inoutRules" ref="inoutFormRef" label-width="100px">
                                 <el-form-item label="操作类型" prop="inoutType">
                                     <el-radio-group v-model="inoutForm.inoutType">
@@ -86,8 +111,19 @@
                                     </el-input-number>
                                 </el-form-item>
 
-                                <el-form-item label="操作员" prop="operatorId">
-                                    <el-input v-model="inoutForm.operatorId"></el-input>
+                                <el-form-item label="操作员">
+                                    <div class="operator-display">
+                                        <div style="display: flex; align-items: center;">
+                                            <i class="el-icon-user-solid" style="margin-right: 8px; color: #409eff;"></i>
+                                            <span>{{ currentUser.operatorName }} ({{ currentUser.operatorId }})</span>
+                                            <el-tag size="small" style="margin-left: 8px;" type="info">
+                                                {{ currentUser.department || '未设置部门' }}
+                                            </el-tag>
+                                        </div>
+                                    </div>
+<!--                                    <div style="font-size: 12px; color: #909399; margin-top: 5px;">-->
+<!--                                        操作员固定为当前登录用户，不可更改-->
+<!--                                    </div>-->
                                 </el-form-item>
 
                                 <el-form-item label="备注">
@@ -95,7 +131,7 @@
                                             v-model="inoutForm.remark"
                                             type="textarea"
                                             :rows="3"
-                                            placeholder="请输入备注信息">
+                                            placeholder="请输入备注信息（可选）">
                                     </el-input>
                                 </el-form-item>
 
@@ -148,6 +184,9 @@
                                     <el-button type="warning" @click="loadAnomalyRecords">仅异常记录</el-button>
                                     <el-button type="info" @click="loadAIPredictions">AI预测分析</el-button>
                                 </el-button-group>
+                                <div style="float: right; color: #909399; font-size: 14px;">
+                                    当前用户：{{ currentUser.operatorName }}
+                                </div>
                             </div>
 
                             <el-table :data="recentRecords" stripe max-height="500">
@@ -161,6 +200,14 @@
                                 </el-table-column>
                                 <el-table-column prop="materialName" label="物料名称" width="120"></el-table-column>
                                 <el-table-column prop="quantity" label="数量" width="80" align="right"></el-table-column>
+                                <el-table-column label="操作员" width="120">
+                                    <template #default="scope">
+                                        <div style="display: flex; align-items: center;">
+                                            <i class="el-icon-user" style="margin-right: 5px; color: #909399;"></i>
+                                            {{ scope.row.operatorName }}
+                                        </div>
+                                    </template>
+                                </el-table-column>
                                 <el-table-column label="异常检测" width="100" align="center">
                                     <template #default="scope">
                                         <div v-if="scope.row.inoutType === '出库' && scope.row.hasAnomaly">
@@ -174,7 +221,6 @@
                                         <span v-else style="color: #67c23a; font-size: 12px;">正常</span>
                                     </template>
                                 </el-table-column>
-                                <el-table-column prop="operatorName" label="操作员" width="100"></el-table-column>
                                 <el-table-column label="操作时间" width="160">
                                     <template #default="scope">
                                         {{ formatDateTime(scope.row.operationTime) }}
@@ -188,6 +234,13 @@
 
             <!-- 物料追溯 -->
             <el-tab-pane label="物料追溯" name="trace">
+                <div style="margin-bottom: 15px; padding: 10px; background: #f0f9ff; border-radius: 4px;">
+                    <i class="el-icon-user" style="margin-right: 8px; color: #409eff;"></i>
+                    <span>当前操作员：</span>
+                    <strong>{{ currentUser.operatorName }}</strong>
+                    <span style="margin-left: 10px; color: #909399;">(ID: {{ currentUser.operatorId }})</span>
+                </div>
+
                 <el-form inline>
                     <el-form-item label="物料">
                         <el-select
@@ -218,6 +271,7 @@
 
                     <el-form-item>
                         <el-button type="primary" @click="traceMaterial">查询</el-button>
+                        <el-button @click="resetTraceForm">重置</el-button>
                     </el-form-item>
                 </el-form>
 
@@ -234,7 +288,14 @@
                     <el-table-column prop="quantity" label="数量" width="100" align="right"></el-table-column>
                     <el-table-column prop="beforeStock" label="操作前库存" width="120" align="right"></el-table-column>
                     <el-table-column prop="afterStock" label="操作后库存" width="120" align="right"></el-table-column>
-                    <el-table-column prop="operatorName" label="操作员" width="100"></el-table-column>
+                    <el-table-column label="操作员" width="120">
+                        <template #default="scope">
+                            <div style="display: flex; align-items: center;">
+                                <i class="el-icon-user" style="margin-right: 5px; color: #909399;"></i>
+                                {{ scope.row.operatorName }}
+                            </div>
+                        </template>
+                    </el-table-column>
                     <el-table-column label="操作时间" width="160">
                         <template #default="scope">
                             {{ formatDateTime(scope.row.operationTime) }}
@@ -248,7 +309,12 @@
             <el-tab-pane label="AI分析报告" name="aireport">
                 <el-card>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                        <h3 style="margin: 0;">AI智能分析报告</h3>
+                        <div>
+                            <h3 style="margin: 0;">AI智能分析报告</h3>
+                            <div style="margin-top: 5px; color: #909399; font-size: 14px;">
+                                操作员：{{ currentUser.operatorName }} | 部门：{{ currentUser.department || '未设置' }}
+                            </div>
+                        </div>
                         <div>
                             <el-button type="primary" @click="generateAIReport">
                                 <i class="el-icon-refresh"></i> 生成报告
@@ -343,6 +409,38 @@
 
     axios.defaults.baseURL = '/warehouse';
 
+    // 添加请求拦截器，在请求头中添加token
+    axios.interceptors.request.use(
+        config => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+            return config;
+        },
+        error => {
+            return Promise.reject(error);
+        }
+    );
+
+    // 添加响应拦截器，处理401未授权
+    axios.interceptors.response.use(
+        response => {
+            return response;
+        },
+        error => {
+            if (error.response && error.response.status === 401) {
+                ElMessage.error('登录已过期，请重新登录');
+                localStorage.removeItem('token');
+                localStorage.removeItem('userInfo');
+                setTimeout(() => {
+                    window.location.href = '../login.html';
+                }, 1500);
+            }
+            return Promise.reject(error);
+        }
+    );
+
     createApp({
         data() {
             return {
@@ -351,12 +449,17 @@
                 currentStock: '',
                 submitting: false,
                 checkingAnomaly: false,
+                currentUser: {
+                    operatorId: '',
+                    operatorName: '',
+                    department: ''
+                },
                 inoutForm: {
                     materialId: '',
                     inoutType: '入库',
                     quantity: null,
-                    operatorId: 'OP001',
                     remark: ''
+                    // 注意：移除了operatorId字段，将在提交时从currentUser获取
                 },
                 inoutRules: {
                     materialId: [{ required: true, message: '请选择物料', trigger: 'change' }],
@@ -364,8 +467,7 @@
                     quantity: [
                         { required: true, message: '请输入数量', trigger: 'blur' },
                         { type: 'number', min: 0.01, message: '数量必须大于0', trigger: 'blur' }
-                    ],
-                    operatorId: [{ required: true, message: '请输入操作员', trigger: 'blur' }]
+                    ]
                 },
                 recentRecords: [],
                 anomalyCheckResult: null,
@@ -381,10 +483,46 @@
             }
         },
         mounted() {
+            this.loadCurrentUser();
             this.loadMaterials();
             this.loadRecentRecords();
         },
         methods: {
+            // 加载当前登录用户信息
+            loadCurrentUser() {
+                try {
+                    const userInfo = localStorage.getItem('userInfo');
+                    if (!userInfo) {
+                        ElMessage.error('请先登录系统');
+                        setTimeout(() => {
+                            window.location.href = '../login.html';
+                        }, 1000);
+                        return;
+                    }
+
+                    const user = JSON.parse(userInfo);
+                    this.currentUser = {
+                        operatorId: user.operatorId,
+                        operatorName: user.operatorName,
+                        department: user.department || ''
+                    };
+
+                    console.log('当前登录用户:', this.currentUser);
+                } catch (error) {
+                    console.error('加载用户信息失败:', error);
+                    ElMessage.error('加载用户信息失败');
+                }
+            },
+
+            // 验证当前用户是否有操作权限
+            validateUserPermission() {
+                if (!this.currentUser || !this.currentUser.operatorId) {
+                    ElMessage.error('用户信息不完整，请重新登录');
+                    return false;
+                }
+                return true;
+            },
+
             async loadMaterials() {
                 try {
                     const res = await axios.get('/api/material/list');
@@ -527,16 +665,21 @@
             },
             async submitInout() {
                 try {
+                    // 验证用户权限
+                    if (!this.validateUserPermission()) {
+                        return;
+                    }
+
                     await this.$refs.inoutFormRef.validate();
 
                     this.submitting = true;
 
-                    // 构建符合InoutDTO格式的数据
+                    // 构建符合InoutDTO格式的数据，使用当前登录用户作为操作员
                     const dto = {
                         materialId: this.inoutForm.materialId,
                         inoutType: this.inoutForm.inoutType,
                         quantity: parseFloat(this.inoutForm.quantity),
-                        operatorId: this.inoutForm.operatorId,
+                        operatorId: this.currentUser.operatorId,  // 使用当前登录用户的operatorId
                         remark: this.inoutForm.remark
                     };
 
@@ -547,6 +690,10 @@
                             message: `${this.inoutForm.inoutType}操作成功！单据号: ${res.data.data.recordId}`,
                             duration: 3000
                         });
+
+                        // 记录操作日志
+                        console.log(`操作员 ${this.currentUser.operatorName} (${this.currentUser.operatorId}) 执行了 ${this.inoutForm.inoutType} 操作，物料: ${this.inoutForm.materialId}，数量: ${this.inoutForm.quantity}`);
+
                         this.resetInoutForm();
                         this.loadRecentRecords();
                         this.loadMaterials();
@@ -849,6 +996,7 @@ AI智能分析报告
 
 生成时间: ${this.aiReport.generateTime}
 分析期间: ${this.aiReport.analysisPeriod}
+操作员: ${this.currentUser.operatorName} (${this.currentUser.operatorId})
 异常记录: ${this.aiReport.anomalyCount} 条
 风险物料: ${this.aiReport.riskMaterialCount} 个
 
@@ -865,7 +1013,7 @@ ${this.aiReport.suggestions.map(s => `- ${s.content}`).join('\n')}
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `AI分析报告_${new Date().toISOString().split('T')[0]}.txt`;
+                link.download = `AI分析报告_${new Date().toISOString().split('T')[0]}_${this.currentUser.operatorId}.txt`;
                 link.click();
                 URL.revokeObjectURL(url);
 
@@ -897,7 +1045,7 @@ ${this.aiReport.suggestions.map(s => `- ${s.content}`).join('\n')}
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
-                link.setAttribute("download", `物料追溯_${this.traceForm.materialId}_${new Date().toISOString().split('T')[0]}.csv`);
+                link.setAttribute("download", `物料追溯_${this.traceForm.materialId}_${new Date().toISOString().split('T')[0]}_${this.currentUser.operatorId}.csv`);
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -909,12 +1057,20 @@ ${this.aiReport.suggestions.map(s => `- ${s.content}`).join('\n')}
                     materialId: '',
                     inoutType: '入库',
                     quantity: null,
-                    operatorId: 'OP001',
                     remark: ''
                 };
                 this.currentStock = '';
                 this.anomalyCheckResult = null;
                 this.$refs.inoutFormRef?.resetFields();
+            },
+            resetTraceForm() {
+                this.traceForm = {
+                    materialId: '',
+                    dateRange: null,
+                    showAnomalyOnly: false,
+                    showCluster: true
+                };
+                this.traceRecords = [];
             },
             formatDateTime(dateTime) {
                 if (!dateTime) return '';
