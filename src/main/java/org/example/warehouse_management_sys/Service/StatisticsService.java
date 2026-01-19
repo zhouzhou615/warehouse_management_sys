@@ -83,34 +83,25 @@ public class StatisticsService {
 
     public Map<String, Object> getOverview() {
         Map<String, Object> result = new HashMap<>();
-
         try {
             log.info("开始获取概览数据...");
-
             // 先调试今日数据
             this.debugTodayInOut();
-
             // 从数据库获取概览数据
             Map<String, Object> overview = statisticsMapper.stockOverview();
             log.info("stockOverview查询结果: {}", overview);
-
             if (overview != null) {
                 result.putAll(overview);
-
                 // 如果today_inout为0，尝试其他方法获取
                 Object todayInOut = overview.get("today_inout");
                 if (todayInOut == null ||
                         (todayInOut instanceof Number && ((Number) todayInOut).doubleValue() == 0)) {
-
                     log.warn("stockOverview返回的today_inout为0或null，尝试通过getTodayInOutStatistics获取");
-
                     Map<String, Object> todayStats = statisticsMapper.getTodayInOutStatistics();
                     log.info("getTodayInOutStatistics查询结果: {}", todayStats);
-
                     if (todayStats != null) {
                         Object todayIn = todayStats.get("today_in");
                         Object todayOut = todayStats.get("today_out");
-
                         BigDecimal total = BigDecimal.ZERO;
                         if (todayIn != null) {
                             total = total.add(new BigDecimal(todayIn.toString()));

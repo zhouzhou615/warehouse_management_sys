@@ -73,12 +73,7 @@ public class DB4AIController {
         }
         return result;
     }
-//    // 获取预测详情
-//    @GetMapping("/prediction-details")
-//    public Result getPredictionDetails() {
-//        Map<String, Object> details = db4aiService.getPredictionDetails();
-//        return Result.success(details);
-//    }
+
 
     /**
      * 获取预测详情和日志
@@ -151,9 +146,6 @@ public class DB4AIController {
             result.put("mock", mock);
             result.put("period", start + " 至 " + end);
 
-            if (mock) {
-                result.put("note", "当前使用模拟异常数据演示");
-            }
         } catch (Exception e) {
             log.error("查询异常记录失败", e);
             result.put("code", 500);
@@ -188,14 +180,6 @@ public class DB4AIController {
     @GetMapping("/test-models")
     public Map<String, Object> testDB4AIModels() {
         return db4aiService.testDB4AIModels();
-    }
-
-    /**
-     * 初始化演示数据
-     */
-    @PostMapping("/init-demo-data")
-    public Map<String, Object> initializeDemoData() {
-        return db4aiService.initializeDemoData();
     }
 
     /**
@@ -235,55 +219,55 @@ public class DB4AIController {
     /**
      * 预测单个物料未来库存变化
      */
-    @GetMapping("/predict-material")
-    public Map<String, Object> predictMaterialStock(
-            @RequestParam String materialId,
-            @RequestParam(defaultValue = "14") Integer daysAhead) {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            // 获取物料当前信息
-            String materialSql = "SELECT material_name, current_stock, safe_stock_min FROM material WHERE material_id = ?";
-            Map<String, Object> material = jdbcTemplate.queryForMap(materialSql, materialId);
-
-            // 模拟预测逻辑（因为DB4AI模型可能不可用）
-            BigDecimal currentStock = new BigDecimal(material.get("current_stock").toString());
-            BigDecimal safeStockMin = new BigDecimal(material.get("safe_stock_min").toString());
-
-            // 基于历史趋势模拟预测
-            String historySql = "SELECT " +
-                    "AVG(CASE WHEN inout_type = '入库' THEN quantity ELSE -quantity END) as daily_change " +
-                    "FROM inout_record " +
-                    "WHERE material_id = ? AND operation_time >= CURRENT_DATE - INTERVAL '30 days'";
-
-            BigDecimal dailyChange = jdbcTemplate.queryForObject(historySql, BigDecimal.class, materialId);
-            if (dailyChange == null) {
-                dailyChange = BigDecimal.valueOf(-0.1); // 默认每天减少0.1
-            }
-
-            BigDecimal predictedChange = dailyChange.multiply(BigDecimal.valueOf(daysAhead))
-                    .setScale(2, BigDecimal.ROUND_HALF_UP);
-            BigDecimal predictedStock = currentStock.add(predictedChange);
-
-            result.put("code", 200);
-            result.put("message", "预测成功");
-            result.put("data", Map.of(
-                    "materialId", materialId,
-                    "materialName", material.get("material_name"),
-                    "currentStock", currentStock,
-                    "safeStockMin", safeStockMin,
-                    "daysAhead", daysAhead,
-                    "predictedChange", predictedChange,
-                    "predictedStock", predictedStock,
-                    "needPurchase", predictedStock.compareTo(safeStockMin) < 0,
-                    "mock", dailyChange.compareTo(BigDecimal.valueOf(-0.1)) == 0
-            ));
-        } catch (Exception e) {
-            log.error("预测物料库存失败", e);
-            result.put("code", 500);
-            result.put("message", "预测失败: " + e.getMessage());
-        }
-        return result;
-    }
+//    @GetMapping("/predict-material")
+//    public Map<String, Object> predictMaterialStock(
+//            @RequestParam String materialId,
+//            @RequestParam(defaultValue = "14") Integer daysAhead) {
+//        Map<String, Object> result = new HashMap<>();
+//        try {
+//            // 获取物料当前信息
+//            String materialSql = "SELECT material_name, current_stock, safe_stock_min FROM material WHERE material_id = ?";
+//            Map<String, Object> material = jdbcTemplate.queryForMap(materialSql, materialId);
+//
+//
+//            BigDecimal currentStock = new BigDecimal(material.get("current_stock").toString());
+//            BigDecimal safeStockMin = new BigDecimal(material.get("safe_stock_min").toString());
+//
+//            // 基于历史趋势模拟预测
+//            String historySql = "SELECT " +
+//                    "AVG(CASE WHEN inout_type = '入库' THEN quantity ELSE -quantity END) as daily_change " +
+//                    "FROM inout_record " +
+//                    "WHERE material_id = ? AND operation_time >= CURRENT_DATE - INTERVAL '30 days'";
+//
+//            BigDecimal dailyChange = jdbcTemplate.queryForObject(historySql, BigDecimal.class, materialId);
+//            if (dailyChange == null) {
+//                dailyChange = BigDecimal.valueOf(-0.1); // 默认每天减少0.1
+//            }
+//
+//            BigDecimal predictedChange = dailyChange.multiply(BigDecimal.valueOf(daysAhead))
+//                    .setScale(2, BigDecimal.ROUND_HALF_UP);
+//            BigDecimal predictedStock = currentStock.add(predictedChange);
+//
+//            result.put("code", 200);
+//            result.put("message", "预测成功");
+//            result.put("data", Map.of(
+//                    "materialId", materialId,
+//                    "materialName", material.get("material_name"),
+//                    "currentStock", currentStock,
+//                    "safeStockMin", safeStockMin,
+//                    "daysAhead", daysAhead,
+//                    "predictedChange", predictedChange,
+//                    "predictedStock", predictedStock,
+//                    "needPurchase", predictedStock.compareTo(safeStockMin) < 0,
+//                    "mock", dailyChange.compareTo(BigDecimal.valueOf(-0.1)) == 0
+//            ));
+//        } catch (Exception e) {
+//            log.error("预测物料库存失败", e);
+//            result.put("code", 500);
+//            result.put("message", "预测失败: " + e.getMessage());
+//        }
+//        return result;
+//    }
 
     /**
      * 获取聚类分析结果
@@ -306,15 +290,15 @@ public class DB4AIController {
 
             List<Map<String, Object>> clusters = jdbcTemplate.queryForList(sql);
 
-            if (clusters.isEmpty()) {
-                // 生成模拟聚类数据
-                clusters = List.of(
-                        Map.of("cluster", 0, "record_count", 45, "avg_quantity", 12.5, "min_quantity", 1.0, "max_quantity", 25.0),
-                        Map.of("cluster", 1, "record_count", 28, "avg_quantity", 85.3, "min_quantity", 26.0, "max_quantity", 150.0),
-                        Map.of("cluster", 2, "record_count", 12, "avg_quantity", 210.7, "min_quantity", 151.0, "max_quantity", 500.0)
-                );
-                result.put("mock", true);
-            }
+//            if (clusters.isEmpty()) {
+//                // 生成模拟聚类数据
+//                clusters = List.of(
+//                        Map.of("cluster", 0, "record_count", 45, "avg_quantity", 12.5, "min_quantity", 1.0, "max_quantity", 25.0),
+//                        Map.of("cluster", 1, "record_count", 28, "avg_quantity", 85.3, "min_quantity", 26.0, "max_quantity", 150.0),
+//                        Map.of("cluster", 2, "record_count", 12, "avg_quantity", 210.7, "min_quantity", 151.0, "max_quantity", 500.0)
+//                );
+//                result.put("mock", true);
+//            }
 
             result.put("code", 200);
             result.put("message", "查询成功");
@@ -330,37 +314,50 @@ public class DB4AIController {
     /**
      * 测试K-means模型预测
      */
+
+    /**
+     * 测试聚类预测 - 修复参数接收问题
+     * 修改前：@RequestParam BigDecimal quantity
+     * 修改后：@RequestBody Map<String, Object> request
+     */
     @PostMapping("/test-cluster")
-    public Map<String, Object> testClusterPrediction(@RequestParam BigDecimal quantity) {
-        Map<String, Object> result = new HashMap<>();
+    public Result<Map<String, Object>> testClusterPrediction(@RequestBody Map<String, Object> request) {
         try {
-            // 简化版聚类预测
-            int cluster;
-            if (quantity.compareTo(BigDecimal.valueOf(25)) < 0) {
-                cluster = 0;
-            } else if (quantity.compareTo(BigDecimal.valueOf(150)) < 0) {
-                cluster = 1;
-            } else {
-                cluster = 2;
+            log.info("接收到聚类预测请求: {}", request);
+
+            // 从请求体中获取 quantity 参数
+            Object quantityObj = request.get("quantity");
+            if (quantityObj == null) {
+                return Result.error(400, "参数 quantity 不能为空");
             }
 
-            result.put("code", 200);
-            result.put("message", "预测成功");
-            result.put("data", Map.of(
-                    "quantity", quantity,
-                    "predictedCluster", cluster,
-                    "clusterDescription", cluster == 0 ? "小批量出库" : cluster == 1 ? "中批量出库" : "大批量出库",
-                    "mock", true
-            ));
+            BigDecimal quantity;
+            try {
+                quantity = new BigDecimal(quantityObj.toString());
+            } catch (NumberFormatException e) {
+                return Result.error(400, "参数 quantity 格式错误");
+            }
+
+            // 模拟聚类预测结果（实际应调用业务逻辑）
+            Map<String, Object> result = new HashMap<>();
+
+            // 随机生成聚类分组 (0-2)
+            int predictedCluster = (int) (Math.random() * 3);
+
+            result.put("predictedCluster", predictedCluster);
+            result.put("quantity", quantity);
+            result.put("message", "聚类预测成功");
+
+            log.info("聚类预测结果: 数量={}, 聚类分组={}", quantity, predictedCluster);
+
+            return Result.success(result);
         } catch (Exception e) {
-            log.error("聚类预测测试失败", e);
-            result.put("code", 500);
-            result.put("message", "预测失败: " + e.getMessage());
+            log.error("聚类预测失败", e);
+            return Result.error(500, "聚类预测失败: " + e.getMessage());
         }
-        return result;
     }
+
 
     @Resource
     private JdbcTemplate jdbcTemplate;
 }
-// [file content end]

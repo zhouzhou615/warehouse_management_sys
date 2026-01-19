@@ -70,48 +70,7 @@ public class DB4AIService {
         }
     }
 
-    /**
-     * 生成模拟的预测数据（当真实预测数据为空时使用）
-     */
-    private List<DB4AIPredictDTO> generateMockPredictions() {
-        List<DB4AIPredictDTO> mockData = new ArrayList<>();
-        try {
-            // 获取物料列表
-            String sql = "SELECT material_id, material_name, current_stock, safe_stock_min FROM material WHERE status = '正常' LIMIT 10";
-            List<Map<String, Object>> materials = jdbcTemplate.queryForList(sql);
 
-            Random random = new Random();
-            for (Map<String, Object> material : materials) {
-                DB4AIPredictDTO dto = new DB4AIPredictDTO();
-                dto.setMaterialId((String) material.get("material_id"));
-                dto.setMaterialName((String) material.get("material_name"));
-
-                BigDecimal currentStock = material.get("current_stock") != null ?
-                        new BigDecimal(material.get("current_stock").toString()) : BigDecimal.ZERO;
-                BigDecimal safeStockMin = material.get("safe_stock_min") != null ?
-                        new BigDecimal(material.get("safe_stock_min").toString()) : BigDecimal.ZERO;
-
-                dto.setCurrentStock(currentStock);
-                dto.setSafeStockMin(safeStockMin);
-
-                // 生成随机预测变化（-30% 到 +10%）
-                double changePercent = -0.3 + random.nextDouble() * 0.4;
-                BigDecimal predictedChange = currentStock.multiply(BigDecimal.valueOf(changePercent))
-                        .setScale(2, BigDecimal.ROUND_HALF_UP);
-
-                dto.setPredictedChange(predictedChange);
-                dto.setPredictedStock(currentStock.add(predictedChange));
-                dto.setDayNum(14); // 预测14天
-
-                mockData.add(dto);
-            }
-
-            log.info("生成 {} 条模拟预测数据", mockData.size());
-        } catch (Exception e) {
-            log.error("生成模拟预测数据失败", e);
-        }
-        return mockData;
-    }
 
     /**
      * 调用存储过程生成未来2周库存预测预警
@@ -226,164 +185,101 @@ public class DB4AIService {
         }
         return result;
     }
-
-    /**
-     * 增强版的库存预测方法，返回详细的预测过程
-     */
-    @Transactional
-    public Map<String, Object> generateStockPredictionsWithLog() {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            log.info("开始执行库存预测预警（带日志记录）...");
-
-            // 先检查是否有足够的历史数据
-            String checkSql = "SELECT COUNT(*) FROM inout_record WHERE operation_time >= CURRENT_DATE - INTERVAL '60 days'";
-            Integer historyCount = jdbcTemplate.queryForObject(checkSql, Integer.class);
-
-            if (historyCount == null || historyCount < 10) {
-                result.put("code", 400);
-                result.put("message", "历史数据不足，至少需要10条过去60天的出入库记录");
-                result.put("historyCount", historyCount);
-                result.put("mockData", generateMockPredictions()); // 返回模拟数据
-                log.warn("历史数据不足，无法进行预测，仅有 {} 条记录", historyCount);
-                return result;
-            }
-
-            // 检查预测存储过程是否存在
-            String procCheckSql = "SELECT COUNT(*) FROM pg_proc WHERE proname = 'sp_predict_stock_warning'";
-            Integer procCount = jdbcTemplate.queryForObject(procCheckSql, Integer.class);
-
-            if (procCount == null || procCount == 0) {
-                result.put("code", 404);
-                result.put("message", "预测存储过程不存在");
-                log.error("预测存储过程 SP_PREDICT_STOCK_WARNING 不存在");
-                return result;
-            }
-
-            // 先清空之前的预测预警
-            String deleteSql = "DELETE FROM stock_alert WHERE alert_type = '低库存' AND handle_remark IS NULL";
-            int deletedCount = jdbcTemplate.update(deleteSql);
-            log.info("已清除 {} 条旧的预测预警", deletedCount);
-
-            // 调用存储过程（带输出参数）
-            String callSql = "CALL SP_PREDICT_STOCK_WARNING(?, ?, ?)";
-
-            // 使用CallableStatement获取输出参数
-            String batchId = jdbcTemplate.execute((ConnectionCallback<String>) conn -> {
-                try (CallableStatement cs = conn.prepareCall(callSql)) {
-                    cs.registerOutParameter(1, Types.VARCHAR);
-                    cs.registerOutParameter(2, Types.INTEGER);
-                    cs.registerOutParameter(3, Types.INTEGER);
-                    cs.execute();
-
-                    String batchIdResult = cs.getString(1);
-                    int totalPredicted = cs.getInt(2);
-                    int totalAlerts = cs.getInt(3);
-
-                    log.info("预测完成 - 批次: {}, 分析物料: {}, 生成预警: {}",
-                            batchIdResult, totalPredicted, totalAlerts);
-
-                    return batchIdResult;
-                }
-            });
-
-            // 获取预测结果
-            String checkPredictionsSql = "SELECT COUNT(*) FROM stock_alert WHERE alert_type = '低库存'";
-            Integer predictionCount = jdbcTemplate.queryForObject(checkPredictionsSql, Integer.class);
-
-            // 获取预测过程日志
-            Map<String, Object> logsResult = getPredictionLogs(batchId, 100);
-
-            // 获取采购推荐
-            List<DB4AIPredictDTO> recommendations = getPurchaseRecommendations();
-
-            result.put("code", 200);
-            result.put("message", "库存预测完成");
-            result.put("batchId", batchId);
-            result.put("predictionCount", predictionCount);
-            result.put("historyCount", historyCount);
-            result.put("deletedCount", deletedCount);
-            result.put("logs", logsResult.get("logs"));
-            result.put("recommendations", recommendations);
-            result.put("needPurchaseCount", recommendations.stream()
-                    .filter(r -> r.getPredictedStock().compareTo(r.getSafeStockMin()) < 0)
-                    .count());
-
-            log.info("库存预测预警生成完成，批次: {}, 预测记录: {}", batchId, predictionCount);
-
-        } catch (Exception e) {
-            log.error("执行库存预测预警失败", e);
-            result.put("code", 500);
-            result.put("message", "库存预测失败: " + e.getMessage());
-            result.put("mockData", generateMockPredictions()); // 返回模拟数据
-        }
-        return result;
-    }
-
-    /**
-
-//    public Map<String, Object> getPredictionDetails() {
+//
+//    /**
+//     * 增强版的库存预测方法，返回详细的预测过程
+//     */
+//    @Transactional
+//    public Map<String, Object> generateStockPredictionsWithLog() {
 //        Map<String, Object> result = new HashMap<>();
 //        try {
-//            // 从stock_alert表获取预测结果
-//            String sql = "SELECT " +
-//                    "COUNT(*) as total_predictions, " +
-//                    "COUNT(CASE WHEN current_stock < safe_threshold THEN 1 END) as low_stock_count, " +
-//                    "COUNT(CASE WHEN current_stock > safe_threshold THEN 1 END) as safe_count " +
-//                    "FROM stock_alert WHERE alert_type = '低库存'";
+//            log.info("开始执行库存预测预警（带日志记录）...");
 //
-//            Map<String, Object> stats = jdbcTemplate.queryForMap(sql);
-//            result.put("stats", stats);
+//            // 先检查是否有足够的历史数据
+//            String checkSql = "SELECT COUNT(*) FROM inout_record WHERE operation_time >= CURRENT_DATE - INTERVAL '60 days'";
+//            Integer historyCount = jdbcTemplate.queryForObject(checkSql, Integer.class);
 //
-//            // 获取详细的预测变化数据
-//            String detailSql = "SELECT " +
-//                    "m.material_id, " +
-//                    "m.material_name, " +
-//                    "m.current_stock, " +
-//                    "sa.current_stock as predicted_stock, " +
-//                    "ROUND((sa.current_stock - m.current_stock)::numeric, 2) as predicted_change, " +
-//                    "m.safe_stock_min, " +
-//                    "CASE " +
-//                    "  WHEN sa.current_stock < m.safe_stock_min THEN '需要预警' " +
-//                    "  WHEN (sa.current_stock - m.current_stock) < 0 THEN '库存下降' " +
-//                    "  ELSE '库存上升' " +
-//                    "END as prediction_status " +
-//                    "FROM stock_alert sa " +
-//                    "JOIN material m ON sa.material_id = m.material_id " +
-//                    "WHERE sa.alert_type = '低库存' " +
-//                    "ORDER BY ABS(sa.current_stock - m.current_stock) DESC " +
-//                    "LIMIT 50";
+//            if (historyCount == null || historyCount < 10) {
+//                result.put("code", 400);
+//                result.put("message", "历史数据不足，至少需要10条过去60天的出入库记录");
+//                result.put("historyCount", historyCount);
+////                result.put("mockData", generateMockPredictions()); // 返回模拟数据
+//                log.warn("历史数据不足，无法进行预测，仅有 {} 条记录", historyCount);
+//                return result;
+//            }
 //
-//            List<Map<String, Object>> details = jdbcTemplate.queryForList(detailSql);
-//            result.put("details", details);
+//            // 检查预测存储过程是否存在
+//            String procCheckSql = "SELECT COUNT(*) FROM pg_proc WHERE proname = 'sp_predict_stock_warning'";
+//            Integer procCount = jdbcTemplate.queryForObject(procCheckSql, Integer.class);
 //
-//            // 获取变化统计数据
-//            String changeSql = "SELECT " +
-//                    "COUNT(CASE WHEN (sa.current_stock - m.current_stock) > 0 THEN 1 END) as increase_count, " +
-//                    "COUNT(CASE WHEN (sa.current_stock - m.current_stock) < 0 THEN 1 END) as decrease_count, " +
-//                    "ROUND(AVG(sa.current_stock - m.current_stock), 2) as avg_change, " +
-//                    "ROUND(MIN(sa.current_stock - m.current_stock), 2) as min_change, " +
-//                    "ROUND(MAX(sa.current_stock - m.current_stock), 2) as max_change " +
-//                    "FROM stock_alert sa " +
-//                    "JOIN material m ON sa.material_id = m.material_id " +
-//                    "WHERE sa.alert_type = '低库存'";
+//            if (procCount == null || procCount == 0) {
+//                result.put("code", 404);
+//                result.put("message", "预测存储过程不存在");
+//                log.error("预测存储过程 SP_PREDICT_STOCK_WARNING 不存在");
+//                return result;
+//            }
 //
-//            Map<String, Object> changeStats = jdbcTemplate.queryForMap(changeSql);
-//            result.put("changeStats", changeStats);
+//            // 先清空之前的预测预警
+//            String deleteSql = "DELETE FROM stock_alert WHERE alert_type = '低库存' AND handle_remark IS NULL";
+//            int deletedCount = jdbcTemplate.update(deleteSql);
+//            log.info("已清除 {} 条旧的预测预警", deletedCount);
+//
+//            // 调用存储过程（带输出参数）
+//            String callSql = "CALL SP_PREDICT_STOCK_WARNING(?, ?, ?)";
+//
+//            // 使用CallableStatement获取输出参数
+//            String batchId = jdbcTemplate.execute((ConnectionCallback<String>) conn -> {
+//                try (CallableStatement cs = conn.prepareCall(callSql)) {
+//                    cs.registerOutParameter(1, Types.VARCHAR);
+//                    cs.registerOutParameter(2, Types.INTEGER);
+//                    cs.registerOutParameter(3, Types.INTEGER);
+//                    cs.execute();
+//
+//                    String batchIdResult = cs.getString(1);
+//                    int totalPredicted = cs.getInt(2);
+//                    int totalAlerts = cs.getInt(3);
+//
+//                    log.info("预测完成 - 批次: {}, 分析物料: {}, 生成预警: {}",
+//                            batchIdResult, totalPredicted, totalAlerts);
+//
+//                    return batchIdResult;
+//                }
+//            });
+//
+//            // 获取预测结果
+//            String checkPredictionsSql = "SELECT COUNT(*) FROM stock_alert WHERE alert_type = '低库存'";
+//            Integer predictionCount = jdbcTemplate.queryForObject(checkPredictionsSql, Integer.class);
+//
+//            // 获取预测过程日志
+//            Map<String, Object> logsResult = getPredictionLogs(batchId, 100);
+//
+//            // 获取采购推荐
+//            List<DB4AIPredictDTO> recommendations = getPurchaseRecommendations();
 //
 //            result.put("code", 200);
-//            result.put("message", "获取预测详情成功");
+//            result.put("message", "库存预测完成");
+//            result.put("batchId", batchId);
+//            result.put("predictionCount", predictionCount);
+//            result.put("historyCount", historyCount);
+//            result.put("deletedCount", deletedCount);
+//            result.put("logs", logsResult.get("logs"));
+//            result.put("recommendations", recommendations);
+//            result.put("needPurchaseCount", recommendations.stream()
+//                    .filter(r -> r.getPredictedStock().compareTo(r.getSafeStockMin()) < 0)
+//                    .count());
+//
+//            log.info("库存预测预警生成完成，批次: {}, 预测记录: {}", batchId, predictionCount);
 //
 //        } catch (Exception e) {
-//            log.error("获取预测详情失败", e);
+//            log.error("执行库存预测预警失败", e);
 //            result.put("code", 500);
-//            result.put("message", "获取预测详情失败: " + e.getMessage());
+//            result.put("message", "库存预测失败: " + e.getMessage());
+////            result.put("mockData", generateMockPredictions()); // 返回模拟数据
 //        }
 //        return result;
 //    }
-    /**
-     * 获取预测详情(从日志表解析)
-     */
+
+
     /**
      * 获取预测详情(从日志表解析)
      */
@@ -658,41 +554,6 @@ public class DB4AIService {
         }
     }
 
-    /**
-     * 获取基本的低库存物料（备选方案）
-     */
-    private List<DB4AIPredictDTO> getBasicLowStockMaterials() {
-        try {
-            String sql = "SELECT " +
-                    "material_id, " +
-                    "material_name, " +
-                    "current_stock, " +
-                    "safe_stock_min, " +
-                    "unit " +
-                    "FROM material " +
-                    "WHERE status = '正常' " +
-                    "AND current_stock < safe_stock_min " +
-                    "AND safe_stock_min > 0 " +
-                    "ORDER BY (safe_stock_min - current_stock) DESC " +
-                    "LIMIT 50";
-
-            return jdbcTemplate.query(sql, (rs, rowNum) -> {
-                DB4AIPredictDTO dto = new DB4AIPredictDTO();
-                dto.setMaterialId(rs.getString("material_id"));
-                dto.setMaterialName(rs.getString("material_name"));
-                dto.setCurrentStock(rs.getBigDecimal("current_stock"));
-                dto.setSafeStockMin(rs.getBigDecimal("safe_stock_min"));
-                dto.setPredictedStock(rs.getBigDecimal("current_stock")); // 使用当前库存
-                dto.setPredictedChange(BigDecimal.ZERO);
-                dto.setDayNum(0);
-                dto.setPredictionSource("当前库存");
-                return dto;
-            });
-        } catch (Exception e) {
-            log.error("获取基本低库存物料失败", e);
-            return Collections.emptyList();
-        }
-    }
 
     /**
      * 获取异常出入库记录（使用2倍标准差阈值）

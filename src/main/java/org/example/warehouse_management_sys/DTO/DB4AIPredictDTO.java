@@ -1,5 +1,4 @@
-// [file name]: DB4AIPredictDTO.java
-// [file content begin]
+
 package org.example.warehouse_management_sys.DTO;
 
 import lombok.Data;
@@ -17,4 +16,3 @@ public class DB4AIPredictDTO {
     private String predictionSource; // 预测来源：AI预测、当前库存、趋势预测
     private String unit; // 物料单位
 }
-// [file content end]

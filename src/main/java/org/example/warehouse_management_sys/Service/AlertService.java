@@ -1,7 +1,6 @@
 package org.example.warehouse_management_sys.Service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.example.warehouse_management_sys.Entity.DB4AIEntity;
 import org.example.warehouse_management_sys.Entity.StockAlert;
 import org.example.warehouse_management_sys.Mapper.StockAlertMapper;
 import org.springframework.stereotype.Service;

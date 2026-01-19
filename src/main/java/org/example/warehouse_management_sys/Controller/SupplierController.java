@@ -24,7 +24,6 @@ public class SupplierController {
         boolean success = supplierService.addSupplier(dto);
         return Result.success("供应商新增成功", success);
     }
-
     @PutMapping("/update")
     public Result<Boolean> updateSupplier(@Valid @RequestBody SupplierDTO dto) {
         boolean success = supplierService.updateSupplier(dto);

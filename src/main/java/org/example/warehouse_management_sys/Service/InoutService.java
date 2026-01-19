@@ -47,7 +47,6 @@ public class InoutService {
         if (material == null) {
             throw new IllegalArgumentException("物料不存在");
         }
-
         // 验证库存（出库时需要）
         if ("出库".equals(dto.getInoutType()) &&
                 material.getCurrentStock().compareTo(dto.getQuantity()) < 0) {
@@ -55,11 +54,9 @@ public class InoutService {
                     String.format("库存不足! 当前库存: %s, 出库数量: %s",
                             material.getCurrentStock(), dto.getQuantity()));
         }
-
         // 生成单据号（与存储过程生成方式一致）
         String recordId = dto.getInoutType() + "_" +
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-
         // 调用存储过程
         Map<String, Object> params = new HashMap<>();
         params.put("p_material_id", dto.getMaterialId());
@@ -69,10 +66,8 @@ public class InoutService {
         params.put("p_remark", dto.getRemark());
         params.put("p_result", null);  // 输出参数
         params.put("p_record_id", null); // 输出参数
-
         // 使用 MyBatis 调用存储过程
         inoutRecordMapper.callMaterialInoutProcedure(params);
-
         String result = (String) params.get("p_result");
         String generatedRecordId = (String) params.get("p_record_id");
 

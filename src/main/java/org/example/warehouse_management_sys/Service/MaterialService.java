@@ -29,17 +29,14 @@ public class MaterialService {
         if (dto.getSafeStockMax().compareTo(dto.getSafeStockMin()) < 0) {
             throw new IllegalArgumentException("安全库存上限必须大于等于下限");
         }
-
         // 检查物料编号是否已存在
         Material existing = materialMapper.selectById(dto.getMaterialId());
         if (existing != null) {
             throw new IllegalArgumentException("物料编号已存在");
         }
-
         // 转换并插入
         Material material = new Material();
         BeanUtils.copyProperties(dto, material);
-
         int result = materialMapper.insert(material);
         log.info("新增物料: {}, 供应商: {}, 结果: {}",
                 dto.getMaterialId(), dto.getSupplierId(), result > 0);

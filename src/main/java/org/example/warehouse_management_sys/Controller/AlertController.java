@@ -15,7 +15,12 @@ public class AlertController {
 
     @Resource
     private AlertService alertService;
-
+    @PutMapping("/handle")
+    public Result<Boolean> handleAlert(@RequestParam Integer alertId,
+                                       @RequestParam String handleRemark) {
+        boolean success = alertService.handleAlert(alertId, handleRemark);
+        return Result.success("预警处理成功", success);
+    }
     @GetMapping("/unhandled")
     public Result<List<StockAlert>> getUnhandledAlerts(
             @RequestParam(required = false) String alertType) {
@@ -27,13 +32,6 @@ public class AlertController {
     public Result<List<StockAlert>> getAllAlerts() {
         List<StockAlert> alerts = alertService.getAllAlerts();
         return Result.success(alerts);
-    }
-
-    @PutMapping("/handle")
-    public Result<Boolean> handleAlert(@RequestParam Integer alertId,
-                                       @RequestParam String handleRemark) {
-        boolean success = alertService.handleAlert(alertId, handleRemark);
-        return Result.success("预警处理成功", success);
     }
 
     @GetMapping("/material/{materialId}")

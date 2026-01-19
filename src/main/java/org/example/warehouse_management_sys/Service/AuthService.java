@@ -24,13 +24,11 @@ public class AuthService {
             String encryptedPassword = DigestUtils.md5DigestAsHex(
                     loginDTO.getPassword().getBytes()
             );
-
             // 查询用户
             Operator operator = operatorMapper.selectByLogin(
                     loginDTO.getUsername(),
                     encryptedPassword
             );
-
             if (operator != null) {
                 log.info("用户登录成功: {}", operator.getOperatorId());
                 // 不返回密码
@@ -38,7 +36,6 @@ public class AuthService {
             } else {
                 log.warn("登录失败: {}", loginDTO.getUsername());
             }
-
             return operator;
         } catch (Exception e) {
             log.error("登录异常", e);
