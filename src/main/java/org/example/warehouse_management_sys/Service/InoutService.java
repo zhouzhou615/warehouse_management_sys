@@ -34,11 +34,6 @@ public class InoutService {
 
     /**
      * 出入库操作
-     * 说明：第200-208行生成唯一单据号，格式为"出入库类型+时间戳+随机数"
-     * 第210-215行查询物料当前库存并验证是否存在
-     * 第217-224行根据出入库类型验证库存是否充足并计算操作后库存
-     * 第226-234行构建出入库记录对象，记录操作前后库存快照
-     * 第236-244行在同一事务中插入记录（触发器自动更新物料表库存）
      */
     @Transactional(rollbackFor = Exception.class)
     public String materialInout(InoutDTO dto) {

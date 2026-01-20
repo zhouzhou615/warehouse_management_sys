@@ -27,20 +27,15 @@ public class DB4AIScheduler {
         try {
             // 1. 执行库存预测
             var predictionResult = db4aiService.generateStockPredictions();
-
             if ("200".equals(predictionResult.get("code").toString())) {
                 // 2. 获取采购推荐清单
                 var purchaseList = db4aiService.getPurchaseRecommendations();
-
                 // 3. 筛选需要采购的物料
                 var needPurchaseItems = purchaseList.stream()
                         .filter(p -> p.getPredictedStock().compareTo(p.getSafeStockMin()) < 0)
                         .toList();
-
                 // 4. 记录日志
                 log.info("【自动任务】预测完成，需要采购 {} 个物料", needPurchaseItems.size());
-
-
 
                 log.info("【自动任务】每周库存预测和采购清单生成完成");
             } else {
@@ -64,9 +59,7 @@ public class DB4AIScheduler {
                     java.time.LocalDate.now().minusDays(1),
                     false
             );
-
             log.info("【自动任务】发现 {} 条异常出入库记录", anomalies.size());
-
             // 记录异常详情
             anomalies.forEach(anomaly ->
                     log.warn("【异常记录】单据号: {}, 物料: {}, 原因: {}, Z分数: {}",
@@ -76,7 +69,6 @@ public class DB4AIScheduler {
                             anomaly.getZScore()
                     )
             );
-
         } catch (Exception e) {
             log.error("【自动任务】每日异常检测任务失败", e);
         }

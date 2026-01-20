@@ -80,7 +80,6 @@ public class DB4AIService {
         Map<String, Object> result = new HashMap<>();
         try {
             log.info("开始执行库存预测预警...");
-
             // 先检查是否有足够的历史数据
             String checkSql = "SELECT COUNT(*) FROM inout_record WHERE operation_time >= CURRENT_DATE - INTERVAL '60 days'";
             Integer historyCount = jdbcTemplate.queryForObject(checkSql, Integer.class);
@@ -92,7 +91,6 @@ public class DB4AIService {
                 log.warn("历史数据不足，无法进行预测，仅有 {} 条记录", historyCount);
                 return result;
             }
-
             // 检查预测存储过程是否存在
             String procCheckSql = "SELECT COUNT(*) FROM pg_proc WHERE proname = 'sp_predict_stock_warning'";
             Integer procCount = jdbcTemplate.queryForObject(procCheckSql, Integer.class);
@@ -185,100 +183,6 @@ public class DB4AIService {
         }
         return result;
     }
-//
-//    /**
-//     * 增强版的库存预测方法，返回详细的预测过程
-//     */
-//    @Transactional
-//    public Map<String, Object> generateStockPredictionsWithLog() {
-//        Map<String, Object> result = new HashMap<>();
-//        try {
-//            log.info("开始执行库存预测预警（带日志记录）...");
-//
-//            // 先检查是否有足够的历史数据
-//            String checkSql = "SELECT COUNT(*) FROM inout_record WHERE operation_time >= CURRENT_DATE - INTERVAL '60 days'";
-//            Integer historyCount = jdbcTemplate.queryForObject(checkSql, Integer.class);
-//
-//            if (historyCount == null || historyCount < 10) {
-//                result.put("code", 400);
-//                result.put("message", "历史数据不足，至少需要10条过去60天的出入库记录");
-//                result.put("historyCount", historyCount);
-////                result.put("mockData", generateMockPredictions()); // 返回模拟数据
-//                log.warn("历史数据不足，无法进行预测，仅有 {} 条记录", historyCount);
-//                return result;
-//            }
-//
-//            // 检查预测存储过程是否存在
-//            String procCheckSql = "SELECT COUNT(*) FROM pg_proc WHERE proname = 'sp_predict_stock_warning'";
-//            Integer procCount = jdbcTemplate.queryForObject(procCheckSql, Integer.class);
-//
-//            if (procCount == null || procCount == 0) {
-//                result.put("code", 404);
-//                result.put("message", "预测存储过程不存在");
-//                log.error("预测存储过程 SP_PREDICT_STOCK_WARNING 不存在");
-//                return result;
-//            }
-//
-//            // 先清空之前的预测预警
-//            String deleteSql = "DELETE FROM stock_alert WHERE alert_type = '低库存' AND handle_remark IS NULL";
-//            int deletedCount = jdbcTemplate.update(deleteSql);
-//            log.info("已清除 {} 条旧的预测预警", deletedCount);
-//
-//            // 调用存储过程（带输出参数）
-//            String callSql = "CALL SP_PREDICT_STOCK_WARNING(?, ?, ?)";
-//
-//            // 使用CallableStatement获取输出参数
-//            String batchId = jdbcTemplate.execute((ConnectionCallback<String>) conn -> {
-//                try (CallableStatement cs = conn.prepareCall(callSql)) {
-//                    cs.registerOutParameter(1, Types.VARCHAR);
-//                    cs.registerOutParameter(2, Types.INTEGER);
-//                    cs.registerOutParameter(3, Types.INTEGER);
-//                    cs.execute();
-//
-//                    String batchIdResult = cs.getString(1);
-//                    int totalPredicted = cs.getInt(2);
-//                    int totalAlerts = cs.getInt(3);
-//
-//                    log.info("预测完成 - 批次: {}, 分析物料: {}, 生成预警: {}",
-//                            batchIdResult, totalPredicted, totalAlerts);
-//
-//                    return batchIdResult;
-//                }
-//            });
-//
-//            // 获取预测结果
-//            String checkPredictionsSql = "SELECT COUNT(*) FROM stock_alert WHERE alert_type = '低库存'";
-//            Integer predictionCount = jdbcTemplate.queryForObject(checkPredictionsSql, Integer.class);
-//
-//            // 获取预测过程日志
-//            Map<String, Object> logsResult = getPredictionLogs(batchId, 100);
-//
-//            // 获取采购推荐
-//            List<DB4AIPredictDTO> recommendations = getPurchaseRecommendations();
-//
-//            result.put("code", 200);
-//            result.put("message", "库存预测完成");
-//            result.put("batchId", batchId);
-//            result.put("predictionCount", predictionCount);
-//            result.put("historyCount", historyCount);
-//            result.put("deletedCount", deletedCount);
-//            result.put("logs", logsResult.get("logs"));
-//            result.put("recommendations", recommendations);
-//            result.put("needPurchaseCount", recommendations.stream()
-//                    .filter(r -> r.getPredictedStock().compareTo(r.getSafeStockMin()) < 0)
-//                    .count());
-//
-//            log.info("库存预测预警生成完成，批次: {}, 预测记录: {}", batchId, predictionCount);
-//
-//        } catch (Exception e) {
-//            log.error("执行库存预测预警失败", e);
-//            result.put("code", 500);
-//            result.put("message", "库存预测失败: " + e.getMessage());
-////            result.put("mockData", generateMockPredictions()); // 返回模拟数据
-//        }
-//        return result;
-//    }
-
 
     /**
      * 获取预测详情(从日志表解析)
@@ -556,23 +460,16 @@ public class DB4AIService {
 
 
     /**
-     * 获取异常出入库记录（使用2倍标准差阈值）
+     * 获取异常出入库记录
      */
     public List<AnomalyDetectionDTO> getAnomalyRecords(LocalDate startDate, LocalDate endDate, boolean useMock) {
-        if (useMock) {
-            return generateMockAnomalyRecords();
-        }
-
-        try {
             // 先检查异常检测视图是否存在
             String viewCheckSql = "SELECT COUNT(*) FROM information_schema.views WHERE table_name = 'v_anomaly_inout_loose_4517'";
             Integer viewCount = jdbcTemplate.queryForObject(viewCheckSql, Integer.class);
-
             if (viewCount == null || viewCount == 0) {
                 log.warn("异常检测视图不存在，使用模拟数据");
-                return generateMockAnomalyRecords();
-            }
 
+            }
             StringBuilder sql = new StringBuilder(
                     "SELECT " +
                             "record_id, material_id, material_name, quantity, " +
@@ -582,19 +479,16 @@ public class DB4AIService {
                             "FROM v_anomaly_inout_loose_4517 " +
                             "WHERE anomaly_reason LIKE '%超出历史均值%' "
             );
-
             List<Object> params = new ArrayList<>();
 
             if (startDate != null) {
                 sql.append(" AND operation_time >= ? ");
                 params.add(startDate.atStartOfDay());
             }
-
             if (endDate != null) {
                 sql.append(" AND operation_time <= ? ");
                 params.add(endDate.atTime(23, 59, 59));
             }
-
             sql.append(" ORDER BY z_score DESC NULLS LAST LIMIT 100");
 
             log.info("执行异常检测查询: {}", sql.toString());
@@ -624,62 +518,8 @@ public class DB4AIService {
 
             log.info("获取到 {} 条异常记录", result.size());
             return result;
-        } catch (Exception e) {
-            log.error("获取异常记录失败，使用模拟数据", e);
-            return generateMockAnomalyRecords();
-        }
     }
 
-    /**
-     * 生成模拟的异常记录
-     */
-    private List<AnomalyDetectionDTO> generateMockAnomalyRecords() {
-        List<AnomalyDetectionDTO> mockData = new ArrayList<>();
-        try {
-            // 获取最近的出库记录
-            String recentOutSql = "SELECT ir.*, m.material_name, o.operator_name " +
-                    "FROM inout_record ir " +
-                    "LEFT JOIN material m ON ir.material_id = m.material_id " +
-                    "LEFT JOIN operator o ON ir.operator_id = o.operator_id " +
-                    "WHERE ir.inout_type = '出库' " +
-                    "ORDER BY ir.operation_time DESC LIMIT 20";
-
-            List<Map<String, Object>> recentRecords = jdbcTemplate.queryForList(recentOutSql);
-
-            Random random = new Random();
-            for (Map<String, Object> record : recentRecords) {
-                // 30%的概率标记为异常
-                if (random.nextDouble() < 0.3) {
-                    AnomalyDetectionDTO dto = new AnomalyDetectionDTO();
-                    dto.setRecordId((String) record.get("record_id"));
-                    dto.setMaterialId((String) record.get("material_id"));
-                    dto.setMaterialName((String) record.get("material_name"));
-                    dto.setQuantity(new BigDecimal(record.get("quantity").toString()));
-                    dto.setOperatorId((String) record.get("operator_id"));
-                    dto.setOperatorName((String) record.get("operator_name"));
-                    dto.setOperationTime(((java.sql.Timestamp) record.get("operation_time")).toLocalDateTime());
-                    dto.setRemark((String) record.get("remark"));
-                    dto.setBeforeStock(record.get("before_stock") != null ?
-                            new BigDecimal(record.get("before_stock").toString()) : BigDecimal.ZERO);
-                    dto.setAfterStock(record.get("after_stock") != null ?
-                            new BigDecimal(record.get("after_stock").toString()) : BigDecimal.ZERO);
-
-                    // 随机生成聚类和Z分数
-                    dto.setCluster(random.nextInt(3));
-                    dto.setZScore(BigDecimal.valueOf(2.0 + random.nextDouble() * 3.0));
-                    dto.setAnomalyReason(dto.getZScore().compareTo(BigDecimal.valueOf(3.0)) >= 0 ?
-                            "出库量超出历史均值3倍" : "出库量超出历史均值2倍");
-
-                    mockData.add(dto);
-                }
-            }
-
-            log.info("生成 {} 条模拟异常记录", mockData.size());
-        } catch (Exception e) {
-            log.error("生成模拟异常记录失败", e);
-        }
-        return mockData;
-    }
 
     /**
      * 获取系统状态和DB4AI组件信息
@@ -732,150 +572,6 @@ public class DB4AIService {
         return status;
     }
 
-    /**
-     * 初始化测试数据（用于演示）
-     */
-    @Transactional
-    public Map<String, Object> initializeDemoData() {
-        Map<String, Object> result = new HashMap<>();
-        try {
-            log.info("开始初始化演示数据...");
-
-            // 1. 生成一些模拟的出入库记录
-            String materialSql = "SELECT material_id FROM material WHERE status = '正常' LIMIT 10";
-            List<String> materialIds = jdbcTemplate.queryForList(materialSql, String.class);
-
-            if (materialIds.isEmpty()) {
-                result.put("code", 400);
-                result.put("message", "没有可用的物料数据");
-                return result;
-            }
-
-            Random random = new Random();
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-
-            // 生成过去60天的记录
-            for (int i = 0; i < 60; i++) {
-                LocalDateTime date = LocalDateTime.now().minusDays(60 - i);
-                String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-
-                for (String materialId : materialIds) {
-                    // 随机生成出入库记录
-                    String inoutType = random.nextDouble() > 0.6 ? "出库" : "入库";
-                    BigDecimal quantity = BigDecimal.valueOf(10 + random.nextDouble() * 100)
-                            .setScale(2, BigDecimal.ROUND_HALF_UP);
-
-                    String recordId = inoutType + "_" + date.format(formatter) + "_" + materialId.substring(0, 4);
-
-                    String insertSql = "INSERT INTO inout_record (record_id, material_id, inout_type, quantity, operator_id, operation_time, remark) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?) " +
-                            "ON CONFLICT DO NOTHING";
-
-                    jdbcTemplate.update(insertSql,
-                            recordId,
-                            materialId,
-                            inoutType,
-                            quantity,
-                            "OP001",
-                            date,
-                            "模拟数据 - " + dateStr
-                    );
-                }
-            }
-
-            // 2. 更新物料库存
-            for (String materialId : materialIds) {
-                // 计算净变化
-                String netChangeSql = "SELECT " +
-                        "SUM(CASE WHEN inout_type = '入库' THEN quantity ELSE -quantity END) as net_change " +
-                        "FROM inout_record WHERE material_id = ?";
-                BigDecimal netChange = jdbcTemplate.queryForObject(netChangeSql, BigDecimal.class, materialId);
-
-                if (netChange != null) {
-                    String updateSql = "UPDATE material SET current_stock = GREATEST(0, ?) WHERE material_id = ?";
-                    jdbcTemplate.update(updateSql, netChange, materialId);
-                }
-            }
-
-            // 3. 设置安全库存
-            String setSafeStockSql = "UPDATE material SET safe_stock_min = current_stock * 0.5, safe_stock_max = current_stock * 2.0 WHERE status = '正常'";
-            jdbcTemplate.update(setSafeStockSql);
-
-            result.put("code", 200);
-            result.put("message", "演示数据初始化完成");
-            result.put("materials", materialIds.size());
-            result.put("records", 60 * materialIds.size());
-
-            log.info("演示数据初始化完成，物料数: {}, 记录数: {}", materialIds.size(), 60 * materialIds.size());
-
-        } catch (Exception e) {
-            log.error("初始化演示数据失败", e);
-            result.put("code", 500);
-            result.put("message", "初始化失败: " + e.getMessage());
-        }
-        return result;
-    }
-
-    /**
-     * 定期任务：每周日晚上执行库存预测
-     */
-    @Scheduled(cron = "0 0 22 ? * SUN") // 每周日22:00执行
-    @Transactional
-    public void weeklyStockPredictionTask() {
-        log.info("开始执行每周库存预测任务...");
-        try {
-            // 检查是否有足够的历史数据
-            String checkSql = "SELECT COUNT(*) FROM inout_record WHERE operation_time >= CURRENT_DATE - INTERVAL '60 days'";
-            Integer historyCount = jdbcTemplate.queryForObject(checkSql, Integer.class);
-
-            if (historyCount == null || historyCount < 10) {
-                log.warn("历史数据不足({}条)，跳过本周预测", historyCount);
-                return;
-            }
-
-            // 生成预测预警
-            Map<String, Object> predictionResult = generateStockPredictions();
-
-            if ("200".equals(predictionResult.get("code").toString())) {
-                // 获取采购推荐清单
-                List<DB4AIPredictDTO> recommendations = getPurchaseRecommendations();
-
-                log.info("每周库存预测任务完成，生成 {} 条采购推荐", recommendations.size());
-            } else {
-                log.warn("每周库存预测任务失败: {}", predictionResult.get("message"));
-            }
-        } catch (Exception e) {
-            log.error("每周库存预测任务失败", e);
-        }
-    }
-
-    /**
-     * 定期任务：每天检查异常记录
-     */
-    @Scheduled(cron = "0 30 23 * * ?") // 每天23:30执行
-    public void dailyAnomalyCheckTask() {
-        log.info("开始执行每日异常检测任务...");
-        try {
-            LocalDate yesterday = LocalDate.now().minusDays(1);
-            List<AnomalyDetectionDTO> anomalies = getAnomalyRecords(yesterday, yesterday, false);
-
-            log.info("发现 {} 条异常出入库记录", anomalies.size());
-
-            if (!anomalies.isEmpty()) {
-                // 记录到日志中
-                anomalies.forEach(anomaly ->
-                        log.warn("异常记录: {} - {} - {} - {}",
-                                anomaly.getRecordId(),
-                                anomaly.getMaterialName(),
-                                anomaly.getAnomalyReason(),
-                                anomaly.getZScore()
-                        )
-                );
-            }
-        } catch (Exception e) {
-            log.error("每日异常检测任务失败", e);
-        }
-    }
 
     /**
      * 测试DB4AI模型预测
@@ -955,4 +651,3 @@ public class DB4AIService {
         return result;
     }
 }
-// [file content end]

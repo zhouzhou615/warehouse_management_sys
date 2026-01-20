@@ -176,9 +176,9 @@
                                     <el-button @click="loadPredictions">
                                         <i class="el-icon-search"></i> 刷新
                                     </el-button>
-                                    <el-button type="warning" @click="showPredictionConfig">
-                                        <i class="el-icon-setting"></i> 预测配置
-                                    </el-button>
+<!--                                    <el-button type="warning" @click="showPredictionConfig">-->
+<!--                                        <i class="el-icon-setting"></i> 预测配置-->
+<!--                                    </el-button>-->
                                 </div>
                             </div>
 
@@ -215,12 +215,12 @@
                                             <div class="status-value" style="color: #f56c6c;">{{ needPurchaseCount }}</div>
                                         </div>
                                     </el-col>
-                                    <el-col :span="6">
-                                        <div class="status-card">
-                                            <div class="status-label">预测准确率</div>
-                                            <div class="status-value" style="color: #67c23a;">92.5%</div>
-                                        </div>
-                                    </el-col>
+<!--                                    <el-col :span="6">-->
+<!--                                        <div class="status-card">-->
+<!--                                            <div class="status-label">预测准确率</div>-->
+<!--                                            <div class="status-value" style="color: #67c23a;">92.5%</div>-->
+<!--                                        </div>-->
+<!--                                    </el-col>-->
                                     <el-col :span="6">
                                         <div class="status-card">
                                             <div class="status-label">数据来源</div>
@@ -292,13 +292,13 @@
                                                     <div style="font-size: 12px; color: #999;">单位</div>
                                                 </div>
                                             </el-col>
-                                            <el-col :span="6">
-                                                <div style="text-align: center; padding: 10px; background: #f6ffed; border-radius: 4px;">
-                                                    <div style="font-size: 12px; color: #52c41a;">预测准确率</div>
-                                                    <div style="font-size: 20px; font-weight: bold;">92.5%</div>
-                                                    <div style="font-size: 12px; color: #999;">基于历史验证</div>
-                                                </div>
-                                            </el-col>
+<!--                                            <el-col :span="6">-->
+<!--                                                <div style="text-align: center; padding: 10px; background: #f6ffed; border-radius: 4px;">-->
+<!--                                                    <div style="font-size: 12px; color: #52c41a;">预测准确率</div>-->
+<!--                                                    <div style="font-size: 20px; font-weight: bold;">92.5%</div>-->
+<!--                                                    <div style="font-size: 12px; color: #999;">基于历史验证</div>-->
+<!--                                                </div>-->
+<!--                                            </el-col>-->
                                         </el-row>
                                     </div>
 
@@ -872,31 +872,31 @@
         </el-tabs>
     </el-card>
 
-    <!-- 预测配置对话框 -->
-    <el-dialog v-model="predictionConfigDialog.visible" title="预测配置" width="500px">
-        <el-form :model="predictionConfig" label-width="120px">
-            <el-form-item label="预测周期(天)">
-                <el-input-number v-model="predictionConfig.days" :min="7" :max="30"></el-input-number>
-            </el-form-item>
-            <el-form-item label="置信水平">
-                <el-slider v-model="predictionConfig.confidence" :min="80" :max="99" :step="1" show-input></el-slider>
-            </el-form-item>
-            <el-form-item label="包含物料">
-                <el-select v-model="predictionConfig.materialFilter" multiple placeholder="选择物料(默认全部)">
-                    <el-option label="全部物料" value="all"></el-option>
-                    <el-option label="仅低库存物料" value="low_stock"></el-option>
-                    <el-option label="仅高库存物料" value="high_stock"></el-option>
-                </el-select>
-            </el-form-item>
-            <el-form-item label="自动邮件通知">
-                <el-switch v-model="predictionConfig.autoEmail"></el-switch>
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <el-button @click="predictionConfigDialog.visible = false">取消</el-button>
-            <el-button type="primary" @click="savePredictionConfig">保存配置</el-button>
-        </template>
-    </el-dialog>
+<!--    &lt;!&ndash; 预测配置对话框 &ndash;&gt;-->
+<!--    <el-dialog v-model="predictionConfigDialog.visible" title="预测配置" width="500px">-->
+<!--        <el-form :model="predictionConfig" label-width="120px">-->
+<!--            <el-form-item label="预测周期(天)">-->
+<!--                <el-input-number v-model="predictionConfig.days" :min="7" :max="30"></el-input-number>-->
+<!--            </el-form-item>-->
+<!--            <el-form-item label="置信水平">-->
+<!--                <el-slider v-model="predictionConfig.confidence" :min="80" :max="99" :step="1" show-input></el-slider>-->
+<!--            </el-form-item>-->
+<!--            <el-form-item label="包含物料">-->
+<!--                <el-select v-model="predictionConfig.materialFilter" multiple placeholder="选择物料(默认全部)">-->
+<!--                    <el-option label="全部物料" value="all"></el-option>-->
+<!--                    <el-option label="仅低库存物料" value="low_stock"></el-option>-->
+<!--                    <el-option label="仅高库存物料" value="high_stock"></el-option>-->
+<!--                </el-select>-->
+<!--            </el-form-item>-->
+<!--            <el-form-item label="自动邮件通知">-->
+<!--                <el-switch v-model="predictionConfig.autoEmail"></el-switch>-->
+<!--            </el-form-item>-->
+<!--        </el-form>-->
+<!--        <template #footer>-->
+<!--            <el-button @click="predictionConfigDialog.visible = false">取消</el-button>-->
+<!--            <el-button type="primary" @click="savePredictionConfig">保存配置</el-button>-->
+<!--        </template>-->
+<!--    </el-dialog>-->
 
     <!-- 异常详情对话框 -->
     <el-dialog v-model="anomalyDetailDialog.visible" :title="'异常记录详情 - ' + anomalyDetailDialog.recordId" width="600px">
@@ -1016,8 +1016,8 @@
                 // 系统状态
                 systemStatus: null,
                 modelStatus: {
-                    xgboost: true, // 设置为正常
-                    kmeans: true   // 设置为正常
+                    xgboost: true,
+                    kmeans: true
                 },
                 predictionModelStats: {},
                 anomalyModelStats: {},
@@ -1059,7 +1059,7 @@
                     { label: '库存增加', value: '0', color: '#52c41a' },
                     { label: '库存减少', value: '0', color: '#faad14' },
                     { label: '平均变化', value: '0', color: '#1890ff' },
-                    { label: '预测准确率', value: '92.5%', color: '#52c41a' }
+                    // { label: '预测准确率', value: '92.5%', color: '#52c41a' }
                 ],
                 increaseCount: 0,
                 decreaseCount: 0,
@@ -1392,16 +1392,6 @@
                 return new Date(dateTime).toLocaleString('zh-CN');
             },
 
-            // 显示预测配置对话框
-            showPredictionConfig() {
-                this.predictionConfigDialog.visible = true;
-            },
-
-            // 保存预测配置
-            savePredictionConfig() {
-                ElMessage.success('预测配置已保存');
-                this.predictionConfigDialog.visible = false;
-            },
 
             // 显示异常详情对话框
             showAnomalyDetail(record) {

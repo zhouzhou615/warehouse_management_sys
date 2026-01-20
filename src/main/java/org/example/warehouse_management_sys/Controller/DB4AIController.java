@@ -32,18 +32,6 @@ public class DB4AIController {
     public Map<String, Object> predictStock(@RequestParam(defaultValue = "false") boolean forceMock) {
         Map<String, Object> result = new HashMap<>();
         try {
-            log.info("执行库存预测，forceMock: {}", forceMock);
-
-            if (forceMock) {
-                // 强制使用模拟数据
-                List<DB4AIPredictDTO> mockPredictions = db4aiService.getPurchaseRecommendations();
-                result.put("code", 200);
-                result.put("message", "使用模拟预测数据");
-                result.put("data", mockPredictions);
-                result.put("mock", true);
-                result.put("count", mockPredictions.size());
-            } else {
-                // 尝试真实预测
                 Map<String, Object> predictionResult = db4aiService.generateStockPredictions();
 
                 if ("200".equals(predictionResult.get("code").toString())) {
@@ -55,17 +43,8 @@ public class DB4AIController {
                     result.put("count", predictions.size());
                     result.put("predictionCount", predictionResult.get("predictionCount"));
                     result.put("historyCount", predictionResult.get("historyCount"));
-                } else {
-                    // 预测失败，使用模拟数据
-                    List<DB4AIPredictDTO> mockPredictions = db4aiService.getPurchaseRecommendations();
-                    result.put("code", 200);
-                    result.put("message", predictionResult.get("message") + "，使用模拟数据演示");
-                    result.put("data", mockPredictions);
-                    result.put("mock", true);
-                    result.put("count", mockPredictions.size());
-                    result.put("warning", predictionResult.get("message"));
                 }
-            }
+
         } catch (Exception e) {
             log.error("库存预测失败", e);
             result.put("code", 500);
@@ -105,14 +84,13 @@ public class DB4AIController {
             result.put("data", recommendations);
             result.put("total", recommendations.size());
 
-            // 标记是否为模拟数据
             boolean isMock = recommendations.isEmpty() ||
                     recommendations.stream().anyMatch(dto -> dto.getDayNum() == null);
             result.put("mock", isMock);
 
-            if (isMock && !recommendations.isEmpty()) {
-                result.put("note", "当前使用模拟数据演示，实际预测需要足够的历史数据");
-            }
+//            if (isMock && !recommendations.isEmpty()) {
+//                result.put("note", "当前使用模拟数据演示，实际预测需要足够的历史数据");
+//            }
         } catch (Exception e) {
             log.error("获取采购推荐失败", e);
             result.put("code", 500);
@@ -216,58 +194,7 @@ public class DB4AIController {
         return result;
     }
 
-    /**
-     * 预测单个物料未来库存变化
-     */
-//    @GetMapping("/predict-material")
-//    public Map<String, Object> predictMaterialStock(
-//            @RequestParam String materialId,
-//            @RequestParam(defaultValue = "14") Integer daysAhead) {
-//        Map<String, Object> result = new HashMap<>();
-//        try {
-//            // 获取物料当前信息
-//            String materialSql = "SELECT material_name, current_stock, safe_stock_min FROM material WHERE material_id = ?";
-//            Map<String, Object> material = jdbcTemplate.queryForMap(materialSql, materialId);
-//
-//
-//            BigDecimal currentStock = new BigDecimal(material.get("current_stock").toString());
-//            BigDecimal safeStockMin = new BigDecimal(material.get("safe_stock_min").toString());
-//
-//            // 基于历史趋势模拟预测
-//            String historySql = "SELECT " +
-//                    "AVG(CASE WHEN inout_type = '入库' THEN quantity ELSE -quantity END) as daily_change " +
-//                    "FROM inout_record " +
-//                    "WHERE material_id = ? AND operation_time >= CURRENT_DATE - INTERVAL '30 days'";
-//
-//            BigDecimal dailyChange = jdbcTemplate.queryForObject(historySql, BigDecimal.class, materialId);
-//            if (dailyChange == null) {
-//                dailyChange = BigDecimal.valueOf(-0.1); // 默认每天减少0.1
-//            }
-//
-//            BigDecimal predictedChange = dailyChange.multiply(BigDecimal.valueOf(daysAhead))
-//                    .setScale(2, BigDecimal.ROUND_HALF_UP);
-//            BigDecimal predictedStock = currentStock.add(predictedChange);
-//
-//            result.put("code", 200);
-//            result.put("message", "预测成功");
-//            result.put("data", Map.of(
-//                    "materialId", materialId,
-//                    "materialName", material.get("material_name"),
-//                    "currentStock", currentStock,
-//                    "safeStockMin", safeStockMin,
-//                    "daysAhead", daysAhead,
-//                    "predictedChange", predictedChange,
-//                    "predictedStock", predictedStock,
-//                    "needPurchase", predictedStock.compareTo(safeStockMin) < 0,
-//                    "mock", dailyChange.compareTo(BigDecimal.valueOf(-0.1)) == 0
-//            ));
-//        } catch (Exception e) {
-//            log.error("预测物料库存失败", e);
-//            result.put("code", 500);
-//            result.put("message", "预测失败: " + e.getMessage());
-//        }
-//        return result;
-//    }
+
 
     /**
      * 获取聚类分析结果
@@ -290,16 +217,6 @@ public class DB4AIController {
 
             List<Map<String, Object>> clusters = jdbcTemplate.queryForList(sql);
 
-//            if (clusters.isEmpty()) {
-//                // 生成模拟聚类数据
-//                clusters = List.of(
-//                        Map.of("cluster", 0, "record_count", 45, "avg_quantity", 12.5, "min_quantity", 1.0, "max_quantity", 25.0),
-//                        Map.of("cluster", 1, "record_count", 28, "avg_quantity", 85.3, "min_quantity", 26.0, "max_quantity", 150.0),
-//                        Map.of("cluster", 2, "record_count", 12, "avg_quantity", 210.7, "min_quantity", 151.0, "max_quantity", 500.0)
-//                );
-//                result.put("mock", true);
-//            }
-
             result.put("code", 200);
             result.put("message", "查询成功");
             result.put("data", clusters);
@@ -311,9 +228,6 @@ public class DB4AIController {
         return result;
     }
 
-    /**
-     * 测试K-means模型预测
-     */
 
     /**
      * 测试聚类预测 - 修复参数接收问题
